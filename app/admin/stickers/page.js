@@ -48,12 +48,20 @@ export default function StickersPrintPage() {
     generateStickersList();
   }, []);
 
+  const handleCopyStickerId = (id, index) => {
+    navigator.clipboard.writeText(id).then(() => {
+      alert(`Sticker #${index} Copied!\nUUID: ${id}\n\nYou can now paste this directly into your Admin Simulator box.`);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
+  };
+
   return (
     <main className="stickers-print-container">
       {/* Top Controls Bar - Hidden during printing */}
       <div className="print-header-controls no-print">
         <h3>Printable QR Sticker Sheets</h3>
-        <p>Total Stickers: <b>{count}</b>. Fully compliant UUIDs ready for database check-in.</p>
+        <p>Total Stickers: <b>{count}</b>. Click on any sticker box below to copy its full UUID for local testing.</p>
         <div className="control-buttons">
           <button onClick={() => window.print()} className="btn-print">Print QR Stickers</button>
           <button onClick={() => window.close()} className="btn-close">Close Tab</button>
@@ -68,10 +76,16 @@ export default function StickersPrintPage() {
       ) : (
         <div className="stickers-grid">
           {stickers.map((stk, idx) => (
-            <div key={stk.id} className="sticker-item">
+            <div 
+              key={stk.id} 
+              className="sticker-item"
+              onClick={() => handleCopyStickerId(stk.id, idx + 1)}
+              title="Click to copy full UUID to clipboard"
+              style={{ cursor: 'pointer' }}
+            >
               <span className="sticker-index">#{idx + 1}</span>
               <img src={stk.qr} alt="QR Code" className="sticker-qr-img" />
-              <span className="sticker-id">{stk.id.substring(0, 13)}...</span>
+              <span className="sticker-id">{stk.id}</span>
             </div>
           ))}
         </div>
@@ -190,6 +204,11 @@ export default function StickersPrintPage() {
           position: relative;
           background: #ffffff;
           page-break-inside: avoid;
+          transition: background-color 0.2s;
+        }
+
+        .sticker-item:hover {
+          background-color: #f4f4f5;
         }
 
         .sticker-index {
@@ -203,16 +222,19 @@ export default function StickersPrintPage() {
 
         .sticker-qr-img {
           width: 100%;
-          max-width: 110px;
+          max-width: 100px;
           aspect-ratio: 1;
         }
 
         .sticker-id {
-          font-size: 0.55rem;
+          font-size: 0.5rem;
           font-family: monospace;
           color: #52525b;
           margin-top: 4px;
-          letter-spacing: 0.02em;
+          letter-spacing: 0.01em;
+          word-break: break-all;
+          text-align: center;
+          max-width: 100%;
         }
 
         /* PRINT MEDIA STYLES */
