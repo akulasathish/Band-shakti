@@ -87,3 +87,36 @@ Next.js apps are easiest to deploy to **Vercel** or **Netlify** (both platforms 
 2.  Choose your repository.
 3.  Go to **Site settings** -> **Environment variables** -> **Add value** and input your keys.
 4.  Trigger a manual deploy.
+
+---
+
+## 📱 Step 6: Local Wi-Fi Network Testing
+
+To load the website and use the physical back camera of your mobile phone to scan tickets, follow these configuration overrides:
+
+1.  **Find Laptop IP:** Locate your active local IP on your network (e.g., `192.168.1.67`).
+2.  **Update `.env.local`:** Change the Supabase URL so client browser JS loaded on your phone points back to the laptop database server:
+    ```bash
+    NEXT_PUBLIC_SUPABASE_URL=http://<your-laptop-ip>:54321
+    ```
+3.  **Open UFW Firewall (Linux):** Let incoming TCP traffic connect to port `3000`:
+    ```bash
+    sudo ufw allow 3000/tcp
+    ```
+4.  **Launch Dev Server:** Bind Next.js to all external network addresses:
+    ```bash
+    npm run dev -- -H 0.0.0.0
+    ```
+5.  **Access on Phone:** Open `http://<your-laptop-ip>:3000/admin` on your mobile browser.
+
+---
+
+## 🔄 Step 7: Supabase Project Transfer (Organization Migration)
+
+To transfer ownership of a Supabase project from your account to another owner/billing manager with **zero downtime**:
+
+1.  **Invite target account:** In the Supabase dashboard, go to **Organization Settings** > **Members** > **Invite**. Invite the target owner's email address as an **Owner** or **Administrator**.
+2.  **Accept invite:** The target owner accepts the email invitation and logs in.
+3.  **Transfer project:** In your project settings, go to **Project Settings** > **General** > scroll to **Danger Zone** > click **Transfer Project**. Select the target owner's personal organization.
+4.  **Confirm:** Once transferred, the project shifts to their billing/administration portal and **instantly disappears** from your dashboard.
+
