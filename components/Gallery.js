@@ -1,7 +1,8 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/utils/supabaseClient';
 
-const IMAGES = [
+const DUMMY_IMAGES = [
   {
     src: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?q=80&w=600&auto=format&fit=crop',
     alt: 'Band Shakthi crowd energy'
@@ -29,19 +30,46 @@ const IMAGES = [
 ];
 
 export default function Gallery() {
+  const [images, setImages] = useState([]);
   const [activeIdx, setActiveIdx] = useState(null);
+
+  const loadImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gallery_assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (data && data.length > 0) {
+        const mapped = data.map(item => ({
+          src: item.url,
+          alt: item.description || 'Band Shakthi Gig'
+        }));
+        setImages(mapped);
+      } else {
+        setImages(DUMMY_IMAGES);
+      }
+    } catch (err) {
+      console.error("Error loading gallery assets:", err);
+      setImages(DUMMY_IMAGES);
+    }
+  };
+
+  useEffect(() => {
+    loadImages();
+  }, []);
 
   const openLightbox = (idx) => setActiveIdx(idx);
   const closeLightbox = () => setActiveIdx(null);
 
   const prevImage = (e) => {
     e.stopPropagation();
-    setActiveIdx((prev) => (prev === 0 ? IMAGES.length - 1 : prev - 1));
+    setActiveIdx((prev) => (prev === 0 ? images.length - 1 : prev - 1));
   };
 
   const nextImage = (e) => {
     e.stopPropagation();
-    setActiveIdx((prev) => (prev === IMAGES.length - 1 ? 0 : prev + 1));
+    setActiveIdx((prev) => (prev === images.length - 1 ? 0 : prev + 1));
   };
 
   return (
@@ -51,7 +79,7 @@ export default function Gallery() {
 
       {/* Grid Layout - 2 Columns on Mobile */}
       <div className="gallery-grid">
-        {IMAGES.map((img, idx) => (
+        {images.map((img, idx) => (
           <div key={idx} className="gallery-item" onClick={() => openLightbox(idx)}>
             <div 
               className="gallery-thumbnail" 
@@ -71,7 +99,7 @@ export default function Gallery() {
       </div>
 
       {/* Lightbox Overlay */}
-      {activeIdx !== null && (
+      {activeIdx !== null && images[activeIdx] && (
         <div className="lightbox-overlay" onClick={closeLightbox}>
           <button className="close-lightbox" onClick={closeLightbox}>×</button>
           
@@ -81,11 +109,11 @@ export default function Gallery() {
           
           <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
             <img 
-              src={IMAGES[activeIdx].src} 
-              alt={IMAGES[activeIdx].alt} 
+              src={images[activeIdx].src} 
+              alt={images[activeIdx].alt} 
               className="lightbox-img" 
             />
-            <p className="lightbox-caption">{IMAGES[activeIdx].alt}</p>
+            <p className="lightbox-caption">{images[activeIdx].alt}</p>
           </div>
           
           <button className="lightbox-nav-btn next-btn" onClick={nextImage} aria-label="Next image">

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import { supabase } from '@/utils/supabaseClient';
 
 export default function AdminPage() {
   // Auth State
@@ -30,6 +31,10 @@ export default function AdminPage() {
     { date: '2026-07-08', source: 'BookMyShow', count: 18 }
   ]);
 
+  // Gallery Management States (Live)
+  const [galleryImages, setGalleryImages] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+
   // Mock Dashboard Stats
   const stats = {
     totalTicketsSold: 284,
@@ -38,12 +43,128 @@ export default function AdminPage() {
     capacity: 400
   };
 
-  const handleLogin = (e) => {
+  // 1. Real Login Authenticator querying database admin_users table
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (email === 'admin@bandshakti.com' && password === 'shaktiadmin') {
-      setIsAuthenticated(true);
-    } else {
-      alert('Invalid admin credentials. Use admin@bandshakti.com / shaktiadmin');
+    try {
+      const { data, error } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', email)
+        .eq('password', password)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data) {
+        setIsAuthenticated(true);
+      } else {
+        alert('Invalid admin credentials. Use admin@bandshakti.com / shaktiadmin');
+      }
+    } catch (err) {
+      console.error("Login verification failed:", err);
+      alert('Login query failed: ' + err.message);
+    }
+  };
+
+  // 2. Fetch live uploaded gallery assets
+  const fetchGalleryImages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gallery_assets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) setGalleryImages(data);
+    } catch (err) {
+      console.error("Error fetching gallery images:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchGalleryImages();
+    }
+  }, [isAuthenticated]);
+
+  // 3. Live Image Upload to Supabase Storage & DB
+  const handleImageUpload = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        // Upload file to bucket 'gallery'
+        const { error: uploadError } = await supabase.storage
+          .from('gallery')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // Get public download URL
+        const { data: urlData } = supabase.storage
+          .from('gallery')
+          .getPublicUrl(filePath);
+
+        // Write link to SQL database table
+        const { error: dbError } = await supabase
+          .from('gallery_assets')
+          .insert({
+            type: 'IMAGE',
+            url: urlData.publicUrl,
+            description: file.name
+          });
+
+        if (dbError) throw dbError;
+      }
+
+      alert('Images uploaded successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Upload process failed:", err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      // Reset input element
+      e.target.value = '';
+    }
+  };
+
+  // 4. Live Image Deletion from DB & Storage
+  const handleDeleteImage = async (id, url) => {
+    if (!confirm('Are you sure you want to delete this image?')) return;
+
+    try {
+      // Extract file name from Supabase storage URL
+      const fileName = url.split('/').pop();
+
+      // Delete from storage
+      const { error: storageError } = await supabase.storage
+        .from('gallery')
+        .remove([fileName]);
+
+      if (storageError) throw storageError;
+
+      // Delete row from database
+      const { error: dbError } = await supabase
+        .from('gallery_assets')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      alert('Image deleted successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Deletion failed:", err);
+      alert('Delete failed: ' + err.message);
     }
   };
 
@@ -52,7 +173,6 @@ export default function AdminPage() {
     if (!isAuthenticated) return;
     
     const startScanner = async () => {
-      // Clear previous scan states
       setScanResult(null);
       setScanError(null);
       
@@ -69,14 +189,13 @@ export default function AdminPage() {
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         
         await html5QrCode.start(
-          { facingMode: "environment" }, // Use back camera
+          { facingMode: "environment" },
           config,
           (decodedText) => {
-            // Success Callback
             handleScanSuccess(decodedText);
           },
           (errorMessage) => {
-            // Error callback (usually silent, fires on every frame with no QR code)
+            // silent frame read log
           }
         );
       } catch (err) {
@@ -90,11 +209,9 @@ export default function AdminPage() {
       startScanner();
     }
 
-    // Cleanup function: Stop camera when leaving the scanner tab
     return () => {
       if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
         html5QrCodeRef.current.stop().then(() => {
-          console.log("Scanner stopped successfully");
           setIsScanning(false);
         }).catch(err => console.error("Error stopping scanner:", err));
       }
@@ -102,7 +219,6 @@ export default function AdminPage() {
   }, [activeTab, isAuthenticated]);
 
   const handleScanSuccess = (decodedText) => {
-    // Stop scanning immediately after a read
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       html5QrCodeRef.current.stop().then(() => {
         setIsScanning(false);
@@ -110,8 +226,6 @@ export default function AdminPage() {
     }
 
     if (activeTab === 'scan') {
-      // Mock Gate scan validation logic
-      // In production, this will call API: /api/admin/scan
       const isAlreadyUsed = decodedText.includes('used') || Math.random() > 0.7; 
       if (isAlreadyUsed) {
         setScanResult({
@@ -127,7 +241,6 @@ export default function AdminPage() {
         });
       }
     } else if (activeTab === 'sell') {
-      // Counter sell activation scan
       setScanResult({
         status: 'READY_TO_ACTIVATE',
         qrId: decodedText
@@ -141,12 +254,10 @@ export default function AdminPage() {
       alert("Please enter guest name.");
       return;
     }
-    // Mock Counter activation API: /api/admin/activate
     setActivationResult({
       success: true,
       message: `Pass Activated! Sticker QR [${scanResult.qrId.substring(0, 8)}...] is now bound to ${guestName} for tonight's show.`
     });
-    // Reset form
     setGuestName('');
     setGuestPhone('');
     setScanResult(null);
@@ -158,7 +269,6 @@ export default function AdminPage() {
       alert("Please select a Zomato/BookMyShow CSV file.");
       return;
     }
-    // Mock CSV Import API
     const newLog = {
       date: new Date().toISOString().split('T')[0],
       source: csvFile.name.toLowerCase().includes('zomato') ? 'Zomato District' : 'BookMyShow',
@@ -186,7 +296,7 @@ export default function AdminPage() {
         
         <div className="glass-card login-card">
           <div className="login-header">
-            <span className="live-indicator"></span>
+            <div className="live-indicator"></div>
             <h2>Admin Portal</h2>
             <p>Access your ticketing scanner & dashboard</p>
           </div>
@@ -500,31 +610,60 @@ export default function AdminPage() {
         {activeTab === 'media' && (
           <div className="tab-content">
             <h2 className="tab-title">Media Manager</h2>
-            <p className="tab-desc">Edit images and texts live on the landing page.</p>
+            <p className="tab-desc">Edit your concert photo gallery live in the database.</p>
 
             <div className="media-forms">
-              {/* Home Carousel */}
+              {/* Photo Gallery Uploader */}
               <div className="glass-card media-editor-section">
-                <h4>1. Hero Banner Slider</h4>
+                <h4>Concert Photo Gallery</h4>
+                
                 <div className="media-row">
-                  <span>Slide 1 Banner</span>
-                  <input type="file" accept="image/*" />
+                  <span>Upload Live Concert Photos</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    multiple 
+                    onChange={handleImageUpload}
+                    disabled={isUploading}
+                  />
                 </div>
-                <div className="media-row">
-                  <span>Slide 2 Banner</span>
-                  <input type="file" accept="image/*" />
-                </div>
-                <button className="btn-gold btn-save-media" onClick={() => alert("Banner updated! Image compression completed.")}>Save Banners</button>
-              </div>
 
-              {/* Photo Gallery */}
-              <div className="glass-card media-editor-section">
-                <h4>2. Concert Photo Gallery</h4>
-                <div className="media-row">
-                  <span>Upload New Photos</span>
-                  <input type="file" accept="image/*" multiple />
+                {isUploading && (
+                  <div className="uploading-indicator">
+                    <span className="spinner"></span>
+                    <p>Uploading to storage...</p>
+                  </div>
+                )}
+
+                {/* Uploaded Gallery Grid preview */}
+                <div className="admin-gallery-preview">
+                  <h5>Currently in Gallery ({galleryImages.length})</h5>
+                  {galleryImages.length === 0 ? (
+                    <p className="no-images-text">No uploaded images yet. Use the selector above to test!</p>
+                  ) : (
+                    <div className="admin-gallery-grid">
+                      {galleryImages.map((img) => (
+                        <div key={img.id} className="admin-gallery-item">
+                          <div 
+                            className="admin-gallery-thumb" 
+                            style={{ backgroundImage: `url(${img.url})` }}
+                          >
+                            <button 
+                              className="btn-delete-img"
+                              onClick={() => handleDeleteImage(img.id, img.url)}
+                              title="Delete Image"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <span className="img-desc-label" title={img.description}>
+                            {img.description?.substring(0, 16) || 'Untitled'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <button className="btn-gold btn-save-media" onClick={() => alert("Concert images uploaded to Supabase Storage.")}>Add to Gallery</button>
               </div>
             </div>
           </div>
@@ -998,8 +1137,89 @@ export default function AdminPage() {
           font-size: 0.8rem;
         }
 
-        .btn-save-media {
+        .uploading-indicator {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 0.85rem;
+          color: var(--color-gold-light);
+        }
+
+        .admin-gallery-preview {
+          margin-top: 16px;
+          border-top: 1px dashed rgba(228, 166, 47, 0.15);
+          padding-top: 16px;
+        }
+
+        .admin-gallery-preview h5 {
+          font-size: 0.85rem;
+          color: #ffffff;
+          margin-bottom: 12px;
+        }
+
+        .no-images-text {
+          font-size: 0.8rem;
+          color: var(--color-text-muted);
+          font-style: italic;
+        }
+
+        .admin-gallery-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 10px;
+        }
+
+        .admin-gallery-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .admin-gallery-thumb {
           width: 100%;
+          aspect-ratio: 1;
+          background-size: cover;
+          background-position: center;
+          border-radius: 6px;
+          border: var(--border-glass);
+          position: relative;
+        }
+
+        .btn-delete-img {
+          position: absolute;
+          top: 4px;
+          right: 4px;
+          background: rgba(255, 51, 51, 0.9);
+          border: none;
+          color: #ffffff;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.85rem;
+          cursor: pointer;
+          font-weight: 700;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+          line-height: 1;
+          padding-bottom: 2px;
+        }
+
+        .btn-delete-img:hover {
+          background: #ff1a1a;
+          transform: scale(1.1);
+        }
+
+        .img-desc-label {
+          font-size: 0.65rem;
+          color: var(--color-text-muted);
+          width: 100%;
+          text-align: center;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         /* Bottom Tab Navigation Bar */
