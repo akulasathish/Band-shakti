@@ -22,7 +22,6 @@ const DEFAULT_SLIDES = [
 export default function Hero() {
   const [slides, setSlides] = useState(DEFAULT_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [isVideoOpen, setIsVideoOpen] = useState(false);
 
   // Fetch custom slide backgrounds from database on load
   useEffect(() => {
@@ -57,9 +56,6 @@ export default function Hero() {
     }, 5000);
     return () => clearInterval(timer);
   }, [slides]);
-
-  const openVideoModal = () => setIsVideoOpen(true);
-  const closeVideoModal = () => setIsVideoOpen(false);
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
@@ -101,18 +97,6 @@ export default function Hero() {
         </div>
       ))}
 
-      {/* Central Red-Border Play Button Box */}
-      <div className="play-button-centerpiece" onClick={openVideoModal}>
-        <div className="play-border-box">
-          <button className="play-btn" aria-label="Watch Live Performance Video">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </button>
-        </div>
-        <span className="watch-prompt">Watch Concert</span>
-      </div>
-
       {/* Slider Navigation Dots */}
       <div className="slider-dots">
         {slides.map((_, idx) => (
@@ -124,26 +108,6 @@ export default function Hero() {
           ></button>
         ))}
       </div>
-
-      {/* Video Modal (Popup) */}
-      {isVideoOpen && (
-        <div className="video-modal" onClick={closeVideoModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="close-modal-btn" onClick={closeVideoModal}>×</button>
-            <div className="video-wrapper">
-              <iframe 
-                width="100%" 
-                height="100%" 
-                src="https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1" 
-                title="Band Shakthi Live Performance Compilation" 
-                frameBorder="0" 
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                allowFullScreen
-              ></iframe>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style jsx>{`
         .hero-section {
@@ -192,7 +156,7 @@ export default function Hero() {
           z-index: 3;
           width: 100%;
           text-align: center;
-          margin-top: -40px;
+          margin-top: -20px;
         }
 
         .live-badge {
@@ -247,67 +211,6 @@ export default function Hero() {
           justify-content: center;
         }
 
-        /* Central Play Button Piece */
-        .play-button-centerpiece {
-          position: absolute;
-          top: 60%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          z-index: 5;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 8px;
-          cursor: pointer;
-        }
-
-        .play-border-box {
-          border: 1.5px solid var(--color-red-accent);
-          padding: 10px;
-          border-radius: 8px;
-          transition: var(--transition-smooth);
-          box-shadow: var(--shadow-red-glow);
-          background: rgba(7, 7, 9, 0.5);
-        }
-
-        .play-button-centerpiece:hover .play-border-box {
-          border-color: var(--color-gold-main);
-          box-shadow: var(--shadow-gold-glow);
-          transform: scale(1.05);
-        }
-
-        .play-btn {
-          width: 50px;
-          height: 50px;
-          border-radius: 50%;
-          background: transparent;
-          border: 1px solid #ffffff;
-          color: #ffffff;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: var(--transition-smooth);
-        }
-
-        .play-button-centerpiece:hover .play-btn {
-          background: #ffffff;
-          color: #070709;
-        }
-
-        .play-btn svg {
-          margin-left: 2px;
-        }
-
-        .watch-prompt {
-          font-family: var(--font-family-title);
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          color: #ffffff;
-        }
-
         /* Dots */
         .slider-dots {
           position: absolute;
@@ -334,60 +237,6 @@ export default function Hero() {
           background: #ffffff;
           width: 24px;
           border-radius: 4px;
-        }
-
-        /* Popup Video Modal */
-        .video-modal {
-          position: fixed;
-          top: 0;
-          left: 50%;
-          transform: translateX(-50%);
-          width: 100%;
-          max-width: 480px;
-          height: 100vh;
-          background: rgba(7, 7, 9, 0.95);
-          z-index: 200;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 20px;
-        }
-
-        .modal-content {
-          position: relative;
-          width: 100%;
-          background: #000;
-          border: 1px solid var(--color-gold-main);
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: var(--shadow-gold-glow);
-        }
-
-        .close-modal-btn {
-          position: absolute;
-          top: 10px;
-          right: 15px;
-          background: transparent;
-          border: none;
-          color: #ffffff;
-          font-size: 2rem;
-          cursor: pointer;
-          z-index: 201;
-          line-height: 1;
-        }
-
-        .video-wrapper {
-          position: relative;
-          padding-bottom: 56.25%;
-          height: 0;
-        }
-
-        .video-wrapper iframe {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
         }
       `}</style>
     </section>
