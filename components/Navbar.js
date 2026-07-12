@@ -328,7 +328,7 @@ export default function Navbar() {
             padding: 0 20px;
           }
         }
-       style-jsx-placeholder-1`}</style>
+      `}</style>
     </>
   );
 }
