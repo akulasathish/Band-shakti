@@ -35,15 +35,15 @@ export default function AdminPage() {
   const [galleryImages, setGalleryImages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Mock Dashboard Stats
-  const stats = {
-    totalTicketsSold: 284,
-    revenue: '₹1,42,000',
-    checkedIn: 186,
+  // Live Database Statistics State
+  const [dbStats, setDbStats] = useState({
+    totalTicketsSold: 0,
+    revenue: '₹0',
+    checkedIn: 0,
     capacity: 400
-  };
+  });
 
-  // 1. Real Login Authenticator querying database admin_users table
+  // 1. Real Login Authenticator
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
@@ -67,7 +67,7 @@ export default function AdminPage() {
     }
   };
 
-  // 2. Fetch live uploaded gallery assets (Banners, Members, and Gallery)
+  // 2. Fetch live uploaded gallery assets
   const fetchGalleryImages = async () => {
     try {
       const { data, error } = await supabase
@@ -82,22 +82,48 @@ export default function AdminPage() {
     }
   };
 
+  // 3. Fetch live statistics from database tickets table
+  const fetchStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*');
+
+      if (error) throw error;
+
+      if (data) {
+        const paidTickets = data.filter(t => t.status === 'PAID');
+        const checkedInCount = paidTickets.filter(t => t.scanned).length;
+        
+        setDbStats({
+          totalTicketsSold: paidTickets.length,
+          revenue: `₹${(paidTickets.length * 500).toLocaleString('en-IN')}`,
+          checkedIn: checkedInCount,
+          capacity: 400
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching dashboard statistics:", err);
+    }
+  };
+
+  // Sync statistics and gallery images when logged in or switching tabs
   useEffect(() => {
     if (isAuthenticated) {
+      fetchStats();
       fetchGalleryImages();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, activeTab]);
 
-  // Helper to fetch current active asset URL (with fallback)
+  // Helper to fetch current active asset URL
   const getAssetUrl = (typeCode, defaultUrl) => {
     const asset = galleryImages.find(img => img.type === typeCode);
     return asset ? asset.url : defaultUrl;
   };
 
-  // Filter General Gallery images out of banners and member profiles
   const galleryOnlyImages = galleryImages.filter(img => img.type === 'IMAGE');
 
-  // 3. Live Multiple Image Upload (specifically for Gallery)
+  // 4. Live Image Upload to Storage & DB
   const handleMultipleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -110,19 +136,19 @@ export default function AdminPage() {
         const fileName = `gallery_${Math.random().toString(36).substring(2, 12)}.${fileExt}`;
         const filePath = `${fileName}`;
 
-        // Upload file to bucket 'gallery'
+        // Upload to bucket 'gallery'
         const { error: uploadError } = await supabase.storage
           .from('gallery')
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        // Get public download URL
+        // Get public URL
         const { data: urlData } = supabase.storage
           .from('gallery')
           .getPublicUrl(filePath);
 
-        // Write link to SQL database table
+        // Save DB record
         const { error: dbError } = await supabase
           .from('gallery_assets')
           .insert({
@@ -145,7 +171,7 @@ export default function AdminPage() {
     }
   };
 
-  // 4. Live Single Image Upload (for Banners and Members)
+  // 5. Live Single Image Upload
   const handleSingleImageUpload = async (e, typeCode) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -156,7 +182,7 @@ export default function AdminPage() {
       const fileName = `${typeCode.toLowerCase()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload to storage bucket 'gallery'
+      // Upload to storage bucket
       const { error: uploadError } = await supabase.storage
         .from('gallery')
         .upload(filePath, file);
@@ -168,7 +194,7 @@ export default function AdminPage() {
         .from('gallery')
         .getPublicUrl(filePath);
 
-      // Check if there is already an existing asset of this type in the database
+      // Check if old asset exists
       const { data: oldAsset } = await supabase
         .from('gallery_assets')
         .select('url')
@@ -176,10 +202,8 @@ export default function AdminPage() {
         .maybeSingle();
 
       if (oldAsset) {
-        // Delete old physical image from storage
         const oldFileName = oldAsset.url.split('/').pop();
         await supabase.storage.from('gallery').remove([oldFileName]);
-        // Delete old row from database
         await supabase.from('gallery_assets').delete().eq('type', typeCode);
       }
 
@@ -205,7 +229,7 @@ export default function AdminPage() {
     }
   };
 
-  // 5. Live Image Deletion
+  // 6. Live Image Deletion
   const handleDeleteImage = async (id, url) => {
     if (!confirm('Are you sure you want to delete this image?')) return;
 
@@ -285,29 +309,91 @@ export default function AdminPage() {
     };
   }, [activeTab, isAuthenticated]);
 
-  const handleScanSuccess = (decodedText) => {
+  // 7. Real Gate check-in verification logic querying Supabase tickets table
+  const handleScanSuccess = async (decodedText) => {
+    // Stop scanning immediately on successful read
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-      html5QrCodeRef.current.stop().then(() => {
+      try {
+        await html5QrCodeRef.current.stop();
         setIsScanning(false);
-      });
+      } catch (err) {
+        console.error("Error stopping camera:", err);
+      }
     }
 
     if (activeTab === 'scan') {
-      const isAlreadyUsed = decodedText.includes('used') || Math.random() > 0.7; 
-      if (isAlreadyUsed) {
+      try {
+        // Extract ticket UUID from the scanned string/URL
+        let ticketId = decodedText;
+        if (decodedText.includes('verify=')) {
+          const urlObj = new URL(decodedText);
+          ticketId = urlObj.searchParams.get('verify');
+        }
+
+        // Query tickets table in Supabase
+        const { data: ticket, error } = await supabase
+          .from('tickets')
+          .select('*')
+          .eq('id', ticketId)
+          .maybeSingle();
+
+        if (error) throw error;
+
+        // If ticket doesn't exist
+        if (!ticket) {
+          setScanResult({
+            status: 'DENIED',
+            message: 'TICKET PASS NOT FOUND IN DATABASE! Invalid entry card.',
+            buyer: 'Unknown / Fraudulent'
+          });
+          return;
+        }
+
+        // If ticket isn't fully paid
+        if (ticket.status !== 'PAID') {
+          setScanResult({
+            status: 'DENIED',
+            message: `TICKET UNPAID (Status: ${ticket.status})! Entry forbidden.`,
+            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+          });
+          return;
+        }
+
+        // If ticket is already scanned (Fraud prevention)
+        if (ticket.scanned) {
+          const scanTime = ticket.scanned_at ? new Date(ticket.scanned_at).toLocaleTimeString() : 'earlier';
+          setScanResult({
+            status: 'DENIED',
+            message: `TICKET ALREADY SCANNED AT ${scanTime}! Entry Denied.`,
+            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+          });
+        } else {
+          // Valid ticket! Mark it as scanned in database
+          const nowStr = new Date().toISOString();
+          const { error: updateError } = await supabase
+            .from('tickets')
+            .update({ scanned: true, scanned_at: nowStr })
+            .eq('id', ticketId);
+
+          if (updateError) throw updateError;
+
+          setScanResult({
+            status: 'GRANTED',
+            message: 'ACCESS GRANTED! Welcome to Band Shakthi.',
+            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+          });
+        }
+
+      } catch (err) {
+        console.error("Verification processing failed:", err);
         setScanResult({
           status: 'DENIED',
-          message: 'TICKET ALREADY SCANNED AT 08:24 PM!',
-          buyer: 'Rahul Kumar (rahul@email.com)'
-        });
-      } else {
-        setScanResult({
-          status: 'GRANTED',
-          message: 'ACCESS GRANTED! Valid Ticket.',
-          buyer: 'Sathish Sharma (sathish@email.com)'
+          message: 'DATABASE ERROR: ' + err.message,
+          buyer: 'Query Failed'
         });
       }
     } else if (activeTab === 'sell') {
+      // Counter sell activation scan
       setScanResult({
         status: 'READY_TO_ACTIVATE',
         qrId: decodedText
@@ -315,19 +401,57 @@ export default function AdminPage() {
     }
   };
 
-  const handleActivateSticker = (e) => {
+  // 8. Offline counter sales QR binder
+  const handleActivateSticker = async (e) => {
     e.preventDefault();
     if (!guestName) {
       alert("Please enter guest name.");
       return;
     }
-    setActivationResult({
-      success: true,
-      message: `Pass Activated! Sticker QR [${scanResult.qrId.substring(0, 8)}...] is now bound to ${guestName} for tonight's show.`
-    });
-    setGuestName('');
-    setGuestPhone('');
-    setScanResult(null);
+
+    try {
+      // Get the active event ID from database
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (eventError) throw eventError;
+      const eventId = eventData ? eventData.id : null;
+
+      // ScanResult contains qrId (which is the scanned pre-printed sticker UUID)
+      const ticketId = scanResult.qrId;
+
+      // Insert row into tickets table using the scanned sticker UUID as the primary key id!
+      const { error: dbError } = await supabase
+        .from('tickets')
+        .insert({
+          id: ticketId, // Binds the sticker UUID
+          event_id: eventId,
+          buyer_name: guestName,
+          buyer_email: guestPhone ? `${guestPhone}@counter.com` : 'counter@guest.com',
+          buyer_phone: guestPhone || '00000 00000',
+          ticket_type: 'OFFLINE_GUEST',
+          status: 'PAID',
+          scanned: false
+        });
+
+      if (dbError) throw dbError;
+
+      setActivationResult({
+        success: true,
+        message: `Pass Activated! Sticker QR [${ticketId.substring(0, 8)}...] is now bound to ${guestName} in the database.`
+      });
+      setGuestName('');
+      setGuestPhone('');
+      setScanResult(null);
+
+    } catch (err) {
+      console.error("Counter activation failed:", err);
+      alert("Activation failed: " + err.message);
+    }
   };
 
   const handleCsvSubmit = (e) => {
@@ -479,11 +603,11 @@ export default function AdminPage() {
             <div className="stats-grid">
               <div className="glass-card stat-box">
                 <span className="stat-label">Tickets Sold</span>
-                <span className="stat-value">{stats.totalTicketsSold}</span>
+                <span className="stat-value">{dbStats.totalTicketsSold}</span>
               </div>
               <div className="glass-card stat-box">
                 <span className="stat-label">Revenue</span>
-                <span className="stat-value gold-text">{stats.revenue}</span>
+                <span className="stat-value gold-text">{dbStats.revenue}</span>
               </div>
               <div className="glass-card stat-box full-width">
                 <span className="stat-label">Event Attendance</span>
@@ -491,11 +615,15 @@ export default function AdminPage() {
                   <div className="attendance-bar-bg">
                     <div 
                       className="attendance-bar-fill" 
-                      style={{ width: `${(stats.checkedIn / stats.totalTicketsSold) * 100}%` }}
+                      style={{ 
+                        width: dbStats.totalTicketsSold > 0 
+                          ? `${(dbStats.checkedIn / dbStats.totalTicketsSold) * 100}%` 
+                          : '0%' 
+                      }}
                     ></div>
                   </div>
                   <span className="attendance-text">
-                    <b>{stats.checkedIn}</b> / {stats.totalTicketsSold} Entered
+                    <b>{dbStats.checkedIn}</b> / {dbStats.totalTicketsSold} Entered
                   </span>
                 </div>
               </div>
@@ -539,7 +667,7 @@ export default function AdminPage() {
                 <div className="result-details">
                   <p><b>Buyer:</b> {scanResult.buyer}</p>
                 </div>
-                <button className="btn-outline btn-scan-again" onClick={() => setActiveTab('stats')}>
+                <button className="btn-outline btn-scan-again" onClick={() => { setScanResult(null); setActiveTab('stats'); }}>
                   Back to Dashboard
                 </button>
               </div>
@@ -617,7 +745,7 @@ export default function AdminPage() {
               <div className="glass-card activation-success-card">
                 <h3>✓ Pass Activated!</h3>
                 <p>{activationResult.message}</p>
-                <button className="btn-gold" onClick={() => { setActivationResult(null); setActiveTab('stats'); }}>
+                <button className="btn-gold" onClick={() => { setActivationResult(null); fetchStats(); setActiveTab('stats'); }}>
                   Done
                 </button>
               </div>
@@ -1088,8 +1216,8 @@ export default function AdminPage() {
         }
 
         .result-fail {
-          background: rgba(255, 51, 51, 0.1);
-          border: 1px solid rgba(255, 51, 51, 0.3);
+          background: rgba(255, 51, 51, 0.15);
+          border: 1px solid rgba(255, 51, 51, 0.35);
           color: #ff3333;
         }
 

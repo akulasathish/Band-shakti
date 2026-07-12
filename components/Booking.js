@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/utils/supabaseClient';
 
 const TICKET_PRICE = 500; // Price in INR
 
@@ -24,7 +25,6 @@ export default function Booking() {
 
   // Recalculate prices and promotions dynamically
   useEffect(() => {
-    let paidQty = quantity;
     let free = 0;
 
     if (quantity >= 5 && quantity < 8) {
@@ -45,19 +45,61 @@ export default function Booking() {
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
-  const handleBookingSubmit = (e) => {
+  // Connects with Supabase to insert a real checkout record
+  const handleBookingSubmit = async (e) => {
     e.preventDefault();
     if (!name || !email || !phone) {
       alert("Please fill in all buyer details.");
       return;
     }
-    
-    // Show payment success dialog
-    alert(`Mock Instamojo Payment Successful!\nTotal Paid: ₹${payableAmount} for ${totalTickets} passes (${quantity} Paid + ${freeTickets} Free).\n\nYour PDF Ticket Pass will download automatically now, and a copy has been sent to your email inbox.`);
-    
-    // Trigger PDF download in a new tab
-    const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&qty=${totalTickets}`;
-    window.open(downloadUrl, '_blank');
+
+    try {
+      // 1. Get the active event ID from database
+      const { data: eventData, error: eventError } = await supabase
+        .from('events')
+        .select('id')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (eventError) throw eventError;
+      const eventId = eventData ? eventData.id : null;
+
+      // 2. Insert row into tickets table
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .insert({
+          event_id: eventId,
+          buyer_name: name,
+          buyer_email: email,
+          buyer_phone: phone,
+          ticket_type: 'ONLINE',
+          status: 'PAID', // Bypassing payments, automatically marked as paid
+          scanned: false
+        })
+        .select('id')
+        .single();
+
+      if (ticketError) throw ticketError;
+      const ticketId = ticketData.id;
+
+      // 3. Inform user of booking success
+      alert(`Booking Successful!\nTotal Paid: ₹${payableAmount} for ${totalTickets} passes (${quantity} Paid + ${freeTickets} Free).\n\nYour PDF Ticket Pass will download automatically now!`);
+
+      // 4. Trigger PDF download with the valid DB Ticket UUID
+      const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&qty=${totalTickets}&id=${ticketId}`;
+      window.open(downloadUrl, '_blank');
+
+      // Reset form
+      setName('');
+      setEmail('');
+      setPhone('');
+      setQuantity(1);
+
+    } catch (err) {
+      console.error("Database insert failed:", err);
+      alert("Booking failed to write to database: " + err.message);
+    }
   };
 
   return (
@@ -330,38 +372,6 @@ export default function Booking() {
           margin: 4px 0;
         }
 
-        /* Input styling */
-        .input-group {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-
-        .input-group label {
-          font-family: var(--font-family-title);
-          font-size: 0.75rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: var(--color-gold-light);
-        }
-
-        .input-group input {
-          background: var(--color-bg-input);
-          border: 1px solid rgba(228, 166, 47, 0.15);
-          color: #ffffff;
-          border-radius: 8px;
-          padding: 12px;
-          font-size: 0.9rem;
-          outline: none;
-          transition: var(--transition-smooth);
-        }
-
-        .input-group input:focus {
-          border-color: var(--color-gold-main);
-          box-shadow: 0 0 10px rgba(228, 166, 47, 0.1);
-        }
-
         .submit-booking-btn {
           width: 100%;
           margin-top: 8px;
@@ -379,7 +389,7 @@ export default function Booking() {
           background: rgba(7, 7, 9, 0.85);
           z-index: 250;
           display: flex;
-          align-items: flex-end; /* Slides up from bottom */
+          align-items: flex-end;
         }
 
         .popup-drawer {
