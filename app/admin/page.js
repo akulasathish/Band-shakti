@@ -20,9 +20,11 @@ export default function AdminPage() {
   const [isScanning, setIsScanning] = useState(false);
   const html5QrCodeRef = useRef(null);
 
-  // Counter Sell Inputs
+  // Counter Sell / Sticker Activator Inputs
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  const [guestPax, setGuestPax] = useState(1);
+  const [activeEvent, setActiveEvent] = useState({ id: null, title: 'No Active Event' });
   const [activationResult, setActivationResult] = useState(null);
 
   // CSV Import States
@@ -68,7 +70,26 @@ export default function AdminPage() {
     }
   };
 
-  // 2. Fetch live uploaded gallery assets
+  // 2. Fetch active event title for counter registration
+  const fetchActiveEvent = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('id, title')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data) {
+        setActiveEvent(data);
+      }
+    } catch (err) {
+      console.error("Failed to load active event:", err);
+    }
+  };
+
+  // 3. Fetch live uploaded gallery assets
   const fetchGalleryImages = async () => {
     try {
       const { data, error } = await supabase
@@ -83,7 +104,7 @@ export default function AdminPage() {
     }
   };
 
-  // 3. Fetch live statistics from database tickets table
+  // 4. Fetch live statistics from database tickets table (aggregating total guest pax count)
   const fetchStats = async () => {
     try {
       const { data, error } = await supabase
@@ -94,11 +115,18 @@ export default function AdminPage() {
 
       if (data) {
         const paidTickets = data.filter(t => t.status === 'PAID');
-        const checkedInCount = paidTickets.filter(t => t.scanned).length;
+        
+        // Sum total pax sold and total pax checked-in
+        const totalPaxSold = paidTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
+        const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        const revenueAmount = paidTickets.reduce((sum, t) => {
+          // If offline ticket, calculate by pax * 500, or simple total
+          return sum + ((t.pax || 1) * 500);
+        }, 0);
         
         setDbStats({
-          totalTicketsSold: paidTickets.length,
-          revenue: `₹${(paidTickets.length * 500).toLocaleString('en-IN')}`,
+          totalTicketsSold: totalPaxSold,
+          revenue: `₹${revenueAmount.toLocaleString('en-IN')}`,
           checkedIn: checkedInCount,
           capacity: 400
         });
@@ -108,9 +136,10 @@ export default function AdminPage() {
     }
   };
 
-  // Sync statistics and gallery images when logged in or switching tabs
+  // Sync details on tab updates
   useEffect(() => {
     if (isAuthenticated) {
+      fetchActiveEvent();
       fetchStats();
       fetchGalleryImages();
     }
@@ -124,7 +153,7 @@ export default function AdminPage() {
 
   const galleryOnlyImages = galleryImages.filter(img => img.type === 'IMAGE');
 
-  // 4. Live Image Upload to Storage & DB
+  // Live Image Upload to Storage & DB
   const handleMultipleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -137,19 +166,16 @@ export default function AdminPage() {
         const fileName = `gallery_${Math.random().toString(36).substring(2, 12)}.${fileExt}`;
         const filePath = `${fileName}`;
 
-        // Upload to bucket 'gallery'
         const { error: uploadError } = await supabase.storage
           .from('gallery')
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
-        // Get public URL
         const { data: urlData } = supabase.storage
           .from('gallery')
           .getPublicUrl(filePath);
 
-        // Save DB record
         const { error: dbError } = await supabase
           .from('gallery_assets')
           .insert({
@@ -172,7 +198,7 @@ export default function AdminPage() {
     }
   };
 
-  // 5. Live Single Image Upload
+  // Live Single Image Upload
   const handleSingleImageUpload = async (e, typeCode) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -183,19 +209,16 @@ export default function AdminPage() {
       const fileName = `${typeCode.toLowerCase()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // Upload to storage bucket
       const { error: uploadError } = await supabase.storage
         .from('gallery')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('gallery')
         .getPublicUrl(filePath);
 
-      // Check if old asset exists
       const { data: oldAsset } = await supabase
         .from('gallery_assets')
         .select('url')
@@ -208,7 +231,6 @@ export default function AdminPage() {
         await supabase.from('gallery_assets').delete().eq('type', typeCode);
       }
 
-      // Insert new database record
       const { error: dbError } = await supabase
         .from('gallery_assets')
         .insert({
@@ -230,21 +252,19 @@ export default function AdminPage() {
     }
   };
 
-  // 6. Live Image Deletion
+  // Live Image Deletion
   const handleDeleteImage = async (id, url) => {
     if (!confirm('Are you sure you want to delete this image?')) return;
 
     try {
       const fileName = url.split('/').pop();
 
-      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('gallery')
         .remove([fileName]);
 
       if (storageError) throw storageError;
 
-      // Delete row from database
       const { error: dbError } = await supabase
         .from('gallery_assets')
         .delete()
@@ -260,7 +280,7 @@ export default function AdminPage() {
     }
   };
 
-  // QR Scanner Lifecycle Management (Starts camera when on scan tabs, stops when leaving)
+  // QR Scanner Lifecycle Management
   useEffect(() => {
     if (!isAuthenticated) return;
     
@@ -310,9 +330,8 @@ export default function AdminPage() {
     };
   }, [activeTab, isAuthenticated]);
 
-  // 7. Real Gate check-in verification logic querying Supabase tickets table
+  // Real Gate check-in verification logic (with inner join to fetch event details)
   const handleScanSuccess = async (decodedText) => {
-    // Stop scanning immediately on successful read
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       try {
         await html5QrCodeRef.current.stop();
@@ -324,52 +343,52 @@ export default function AdminPage() {
 
     if (activeTab === 'scan') {
       try {
-        // Extract ticket UUID from the scanned string/URL
         let ticketId = decodedText;
         if (decodedText.includes('verify=')) {
           const urlObj = new URL(decodedText);
           ticketId = urlObj.searchParams.get('verify');
         }
 
-        // Query tickets table in Supabase
+        // Joint query to retrieve buyer details, event name, and pax count!
         const { data: ticket, error } = await supabase
           .from('tickets')
-          .select('*')
+          .select('*, events(title)')
           .eq('id', ticketId)
           .maybeSingle();
 
         if (error) throw error;
 
-        // If ticket doesn't exist
         if (!ticket) {
           setScanResult({
             status: 'DENIED',
-            message: 'TICKET PASS NOT FOUND IN DATABASE! Invalid entry card.',
+            message: 'TICKET PASS NOT FOUND IN DATABASE! Invalid entry pass.',
             buyer: 'Unknown / Fraudulent'
           });
           return;
         }
 
-        // If ticket isn't fully paid
         if (ticket.status !== 'PAID') {
           setScanResult({
             status: 'DENIED',
             message: `TICKET UNPAID (Status: ${ticket.status})! Entry forbidden.`,
-            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+            buyer: ticket.buyer_name,
+            pax: ticket.pax || 1,
+            event: ticket.events?.title || 'Concert Live Show'
           });
           return;
         }
 
-        // If ticket is already scanned (Fraud prevention)
         if (ticket.scanned) {
           const scanTime = ticket.scanned_at ? new Date(ticket.scanned_at).toLocaleTimeString() : 'earlier';
           setScanResult({
             status: 'DENIED',
-            message: `TICKET ALREADY SCANNED AT ${scanTime}! Entry Denied.`,
-            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+            message: `TICKET ALREADY SCANNED AT ${scanTime}! Duplicate entry denied.`,
+            buyer: ticket.buyer_name,
+            pax: ticket.pax || 1,
+            event: ticket.events?.title || 'Concert Live Show'
           });
         } else {
-          // Valid ticket! Mark it as scanned in database
+          // Valid ticket! Mark as scanned
           const nowStr = new Date().toISOString();
           const { error: updateError } = await supabase
             .from('tickets')
@@ -380,8 +399,10 @@ export default function AdminPage() {
 
           setScanResult({
             status: 'GRANTED',
-            message: 'ACCESS GRANTED! Welcome to Band Shakthi.',
-            buyer: `${ticket.buyer_name} (${ticket.buyer_email})`
+            message: 'ACCESS GRANTED! Welcome to the show.',
+            buyer: ticket.buyer_name,
+            pax: ticket.pax || 1,
+            event: ticket.events?.title || 'Concert Live Show'
           });
         }
 
@@ -402,7 +423,7 @@ export default function AdminPage() {
     }
   };
 
-  // 8. Offline counter sales QR binder
+  // Offline counter sales QR activation
   const handleActivateSticker = async (e) => {
     e.preventDefault();
     if (!guestName) {
@@ -411,30 +432,19 @@ export default function AdminPage() {
     }
 
     try {
-      // Get the active event ID from database
-      const { data: eventData, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (eventError) throw eventError;
-      const eventId = eventData ? eventData.id : null;
-
-      // ScanResult contains qrId (which is the scanned pre-printed sticker UUID)
       const ticketId = scanResult.qrId;
 
-      // Insert row into tickets table using the scanned sticker UUID as the primary key id!
+      // Insert row into tickets table using the pre-printed sticker UUID as the primary key id
       const { error: dbError } = await supabase
         .from('tickets')
         .insert({
-          id: ticketId, // Binds the sticker UUID
-          event_id: eventId,
+          id: ticketId,
+          event_id: activeEvent.id,
           buyer_name: guestName,
           buyer_email: guestPhone ? `${guestPhone}@counter.com` : 'counter@guest.com',
           buyer_phone: guestPhone || '00000 00000',
           ticket_type: 'OFFLINE_GUEST',
+          pax: guestPax, // Saves the cashier-inputted pax count!
           status: 'PAID',
           scanned: false
         });
@@ -443,10 +453,12 @@ export default function AdminPage() {
 
       setActivationResult({
         success: true,
-        message: `Pass Activated! Sticker QR [${ticketId.substring(0, 8)}...] is now bound to ${guestName} in the database.`
+        message: `Pass Activated! QR sticker is now bound to "${guestName}" for ${guestPax} pax. Event: "${activeEvent.title}"`
       });
+      
       setGuestName('');
       setGuestPhone('');
+      setGuestPax(1);
       setScanResult(null);
 
     } catch (err) {
@@ -603,7 +615,7 @@ export default function AdminPage() {
             
             <div className="stats-grid">
               <div className="glass-card stat-box">
-                <span className="stat-label">Tickets Sold</span>
+                <span className="stat-label">Total Pax Sold</span>
                 <span className="stat-value">{dbStats.totalTicketsSold}</span>
               </div>
               <div className="glass-card stat-box">
@@ -624,7 +636,7 @@ export default function AdminPage() {
                     ></div>
                   </div>
                   <span className="attendance-text">
-                    <b>{dbStats.checkedIn}</b> / {dbStats.totalTicketsSold} Entered
+                    <b>{dbStats.checkedIn}</b> / {dbStats.totalTicketsSold} Pax Checked In
                   </span>
                 </div>
               </div>
@@ -660,14 +672,22 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Scanner Results Overlay */}
+            {/* Scanner Results Overlay showing guest name, event name, and pax count! */}
             {scanResult && (
               <div className={`scan-result-card ${scanResult.status === 'GRANTED' ? 'result-success' : 'result-fail'}`}>
                 <h3>{scanResult.status === 'GRANTED' ? '✓ ACCESS GRANTED' : '✗ ACCESS DENIED'}</h3>
                 <p className="result-msg">{scanResult.message}</p>
+                
                 <div className="result-details">
-                  <p><b>Buyer:</b> {scanResult.buyer}</p>
+                  <p><b>Guest Name:</b> {scanResult.buyer}</p>
+                  {scanResult.pax && (
+                    <p style={{ color: 'var(--color-gold-main)', fontWeight: 'bold' }}>
+                      <b>Allowed Pax:</b> {scanResult.pax} Person(s)
+                    </p>
+                  )}
+                  {scanResult.event && <p><b>Event:</b> {scanResult.event}</p>}
                 </div>
+
                 <button className="btn-outline btn-scan-again" onClick={() => { setScanResult(null); setActiveTab('stats'); }}>
                   Back to Dashboard
                 </button>
@@ -740,12 +760,18 @@ export default function AdminPage() {
               </>
             )}
 
-            {/* Step 2: Input guest details to activate */}
+            {/* Step 2: Input guest details and PAX count to activate */}
             {scanResult && scanResult.status === 'READY_TO_ACTIVATE' && (
               <div className="glass-card activation-form-card">
                 <div className="activation-header">
                   <span className="badge-ok">Sticker Scanned</span>
                   <p className="qr-hash">ID: {scanResult.qrId.substring(0, 16)}...</p>
+                </div>
+
+                <div style={{ background: 'rgba(228, 166, 47, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid rgba(228, 166, 47, 0.1)', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-gold-light)', margin: 0 }}>
+                    <b>Event:</b> {activeEvent.title}
+                  </p>
                 </div>
 
                 <form onSubmit={handleActivateSticker} className="activation-form">
@@ -761,10 +787,21 @@ export default function AdminPage() {
                   </div>
 
                   <div className="input-group">
+                    <label>Number of People (Pax)</label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={guestPax} 
+                      onChange={(e) => setGuestPax(Math.max(1, parseInt(e.target.value) || 1))}
+                      required 
+                    />
+                  </div>
+
+                  <div className="input-group">
                     <label>Phone Number (Optional)</label>
                     <input 
                       type="tel" 
-                      placeholder="Phone" 
+                      placeholder="Phone Number" 
                       value={guestPhone} 
                       onChange={(e) => setGuestPhone(e.target.value)}
                     />
@@ -1277,11 +1314,19 @@ export default function AdminPage() {
         .result-details {
           background: rgba(0, 0, 0, 0.3);
           border-radius: 8px;
-          padding: 10px;
-          font-size: 0.8rem;
+          padding: 12px 14px;
+          font-size: 0.85rem;
           text-align: left;
           color: var(--color-text-muted);
           margin-bottom: 20px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .result-details p {
+          margin: 0;
+          color: #ffffff;
         }
 
         .btn-scan-again {
