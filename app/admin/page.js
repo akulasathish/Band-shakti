@@ -247,6 +247,68 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, activeTab]);
 
+  // --- CAMERA SCANNER INITIALIZATION EFFECTS ---
+  useEffect(() => {
+    let scanner = null;
+    const elementId = activeTab === 'scan' ? 'gate-scanner-reader' : 'sell-scanner-reader';
+
+    // Start scanner if tab is active and no scan result exists yet (for sell, wait until scanned)
+    const shouldStartScanner = 
+      isAuthenticated && 
+      (activeTab === 'scan' || (activeTab === 'sell' && (!scanResult || scanResult.status !== 'READY_TO_ACTIVATE') && !activationResult));
+
+    if (shouldStartScanner) {
+      const timer = setTimeout(() => {
+        const checkEl = document.getElementById(elementId);
+        if (!checkEl) return;
+
+        try {
+          const html5QrCode = new Html5Qrcode(elementId);
+          html5QrCodeRef.current = html5QrCode;
+          setIsScanning(true);
+
+          html5QrCode.start(
+            { facingMode: "environment" }, // back camera
+            {
+              fps: 10,
+              qrbox: { width: 250, height: 250 }
+            },
+            (decodedText) => {
+              handleScanSuccess(decodedText);
+            },
+            (errorMessage) => {
+              // verbose logs ignored
+            }
+          ).catch(err => {
+            console.error("Camera start failed:", err);
+            setScanError("Failed to access camera: " + err.message);
+            setIsScanning(false);
+          });
+        } catch (e) {
+          console.error("Scanner setup failed:", e);
+        }
+      }, 500);
+
+      return () => {
+        clearTimeout(timer);
+        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+          html5QrCodeRef.current.stop().then(() => {
+            setIsScanning(false);
+            html5QrCodeRef.current = null;
+          }).catch(err => console.error("Error stopping camera on unmount:", err));
+        }
+      };
+    } else {
+      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
+        html5QrCodeRef.current.stop().then(() => {
+          setIsScanning(false);
+          html5QrCodeRef.current = null;
+        }).catch(err => console.error("Error stopping camera:", err));
+      }
+    }
+  }, [activeTab, isAuthenticated, scanResult, activationResult]);
+
+
   const galleryOnlyImages = galleryImages.filter(img => img.type === 'IMAGE');
 
   // --- LOCAL INPUT TEXT MODIFIERS ---
