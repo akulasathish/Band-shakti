@@ -340,14 +340,25 @@ export default function AdminPage() {
       }
     }
 
-    if (activeTab === 'scan') {
-      try {
-        let ticketId = decodedText;
-        if (decodedText.includes('verify=')) {
-          const urlObj = new URL(decodedText);
-          ticketId = urlObj.searchParams.get('verify');
-        }
+    try {
+      let ticketId = decodedText;
+      if (decodedText.includes('verify=')) {
+        const urlObj = new URL(decodedText);
+        ticketId = urlObj.searchParams.get('verify');
+      }
 
+      // Client-side UUID Format Validation (Prevents database syntax errors)
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(ticketId)) {
+        setScanResult({
+          status: 'DENIED',
+          message: 'INVALID ID FORMAT! Scanned key must be a valid 36-character UUID.',
+          buyer: 'Incorrect Ticket Format'
+        });
+        return;
+      }
+
+      if (activeTab === 'scan') {
         // Joint query to retrieve buyer details, event name, and pax count
         const { data: ticket, error } = await supabase
           .from('tickets')
@@ -404,20 +415,19 @@ export default function AdminPage() {
             event: ticket.events?.title || 'Concert Live Show'
           });
         }
-
-      } catch (err) {
-        console.error("Verification processing failed:", err);
+      } else if (activeTab === 'sell') {
+        // Counter sell activation scan
         setScanResult({
-          status: 'DENIED',
-          message: 'DATABASE ERROR: ' + err.message,
-          buyer: 'Query Failed'
+          status: 'READY_TO_ACTIVATE',
+          qrId: ticketId
         });
       }
-    } else if (activeTab === 'sell') {
-      // Counter sell activation scan
+    } catch (err) {
+      console.error("Verification processing failed:", err);
       setScanResult({
-        status: 'READY_TO_ACTIVATE',
-        qrId: decodedText
+        status: 'DENIED',
+        message: 'DATABASE ERROR: ' + err.message,
+        buyer: 'Query Failed'
       });
     }
   };
@@ -482,7 +492,7 @@ export default function AdminPage() {
   };
 
   // Helper trigger to manually simulate scanning during desktop testing
-  const handleSimulateScanInput = (inputId, resetCallback) => {
+  const handleSimulateScanInput = (inputId) => {
     const inputEl = document.getElementById(inputId);
     const value = inputEl ? inputEl.value.trim() : '';
     if (!value) {
@@ -692,7 +702,7 @@ export default function AdminPage() {
                   <input 
                     type="text" 
                     id="manual-gate-uuid" 
-                    placeholder="Paste Ticket ID (UUID)" 
+                    placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" 
                     style={{ 
                       flex: 1, 
                       background: '#070709', 
@@ -773,7 +783,7 @@ export default function AdminPage() {
                     <input 
                       type="text" 
                       id="manual-sticker-uuid" 
-                      placeholder="Paste Pre-Printed Sticker UUID" 
+                      placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" 
                       style={{ 
                         flex: 1, 
                         background: '#070709', 

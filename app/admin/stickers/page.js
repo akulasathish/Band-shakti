@@ -2,6 +2,15 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 
+// Standard RFC4122 v4 UUID generator compatible with Postgres UUID type
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 export default function StickersPrintPage() {
   const [stickers, setStickers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,10 +25,10 @@ export default function StickersPrintPage() {
     const generateStickersList = async () => {
       const list = [];
       for (let i = 0; i < countParam; i++) {
-        // Generate random unique UUID for each sticker
-        const uuid = 'offline_' + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
+        // Generate a valid compliant UUID
+        const uuid = generateUUID();
         
-        // Gate check-in URL
+        // Gate check-in verification URL
         const verificationUrl = `http://127.0.0.1:3000/admin?verify=${uuid}`;
         
         const qrUrl = await QRCode.toDataURL(verificationUrl, {
@@ -44,7 +53,7 @@ export default function StickersPrintPage() {
       {/* Top Controls Bar - Hidden during printing */}
       <div className="print-header-controls no-print">
         <h3>Printable QR Sticker Sheets</h3>
-        <p>Total Stickers: <b>{count}</b>. Perfect for printing on adhesive labels at your local print shop.</p>
+        <p>Total Stickers: <b>{count}</b>. Fully compliant UUIDs ready for database check-in.</p>
         <div className="control-buttons">
           <button onClick={() => window.print()} className="btn-print">Print QR Stickers</button>
           <button onClick={() => window.close()} className="btn-close">Close Tab</button>
@@ -62,7 +71,7 @@ export default function StickersPrintPage() {
             <div key={stk.id} className="sticker-item">
               <span className="sticker-index">#{idx + 1}</span>
               <img src={stk.qr} alt="QR Code" className="sticker-qr-img" />
-              <span className="sticker-id">{stk.id.substring(8, 20)}</span>
+              <span className="sticker-id">{stk.id.substring(0, 13)}...</span>
             </div>
           ))}
         </div>
@@ -199,11 +208,11 @@ export default function StickersPrintPage() {
         }
 
         .sticker-id {
-          font-size: 0.6rem;
+          font-size: 0.55rem;
           font-family: monospace;
           color: #52525b;
           margin-top: 4px;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.02em;
         }
 
         /* PRINT MEDIA STYLES */
