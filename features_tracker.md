@@ -6,15 +6,15 @@ Use this document to track the progress of features during development. We will 
 
 ## 📊 Status Summary
 *   **Total MVP Features:** 15
-*   **Completed:** 3
+*   **Completed:** 11
 *   **In Progress:** 0
-*   **Pending:** 12
+*   **Pending:** 4
 
 ---
 
 ## 🛠️ Project Roadmap & Tracks
 
-### Track 1: Initial setup & Documentation
+### Track 1: Initial Setup & Documentation
 *   [x] **Git Initialization** — Local git repository initialized.
 *   [x] **Architectural Proposal** — Technical design, security flows, and integrations defined.
 *   [x] **Core System Documentation** — README, tech stack specs, deployment guide, and database SQL schemas created.
@@ -22,18 +22,18 @@ Use this document to track the progress of features during development. We will 
 ---
 
 ### Track 2: Public Landing Page (UI/UX)
-*   [ ] **Responsive Header & Sticky Navbar** — Translucent blurred header matching the Mousiqua styling with a glowing ticket CTA.
-*   [ ] **Hero Slider (2 Slides)** — Main carousel with title banner and a central video play-button modal.
-*   [ ] **About & Band Members Section** — Biography text and individual band member cards with hover zoom and text slide-up transitions.
-*   [ ] **Photo Gallery Grid** — Image gallery featuring hover effects and an overlay lightbox modal for image-swiping.
-*   [ ] **Contact & Booking Form** — Static form to submit private performance bookings directly.
-*   [ ] **WhatsApp Floating Widget** — Sticky WhatsApp chat link in the bottom-right corner.
+*   [x] **Responsive Header & Sticky Navbar** — Translucent blurred header matching the Mousiqua styling with a glowing ticket CTA.
+*   [x] **Hero Slider (2 Slides)** — Main carousel with title banner and a central video play-button modal.
+*   [x] **About & Band Members Section** — Biography text and individual band member cards with hover zoom and text slide-up transitions.
+*   [x] **Photo Gallery Grid** — Image gallery featuring hover effects and an overlay lightbox modal for image-swiping.
+*   [x] **Contact & Booking Form** — Static form to submit private performance bookings directly.
+*   [x] **WhatsApp Floating Widget** — Sticky WhatsApp chat link in the bottom-right corner.
 
 ---
 
 ### Track 3: Ticketing & Payment Gateway (Instamojo)
-*   [ ] **Offer Promo Popup** — Time-delayed modal showing the buy-more-get-more promotions.
-*   [ ] **Booking & Pricing Engine** — Ticket quantity selectors with live dynamic pricing calculations (Buy 2 Get 1, Buy 5 Get 2, Buy 10 Get 3).
+*   [x] **Offer Promo Popup** — Time-delayed modal showing the buy-more-get-more promotions.
+*   [x] **Booking & Pricing Engine** — Ticket quantity selectors with live dynamic pricing calculations (Buy 2 Get 1, Buy 5 Get 2, Buy 10 Get 3).
 *   [ ] **Instamojo Checkout Integration** — API route to generate payment requests and handle redirect payment callbacks securely.
 *   [ ] **PDF Ticket Generator** — Backend service utilizing `pdf-lib` to overlay event details and custom QR codes onto the ticket graphic.
 *   [ ] **Email Delivery Service** — Automation utilizing Resend/SMTP to deliver the PDF tickets to the buyer immediately.

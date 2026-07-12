@@ -1,40 +1,56 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-bg: #070709;
+  --color-bg-card: rgba(18, 18, 24, 0.65);
+  --color-bg-input: rgba(30, 30, 40, 0.5);
+  --color-text: #ffffff;
+  --color-text-muted: #a3a3a3;
+  
+  /* Brand Colors aligned with the Band Shakthi Logo */
+  --color-gold-light: #ffe6a3;
+  --color-gold-main: #e4a62f;
+  --color-gold-dark: #b8801f;
+  --color-red-accent: #ff3333; /* Matches the signature red dot in the logo */
+  
+  /* Gradients */
+  --gold-gradient: linear-gradient(135deg, var(--color-gold-light) 0%, var(--color-gold-main) 100%);
+  --gold-text-gradient: linear-gradient(135deg, #ffffff 0%, var(--color-gold-light) 50%, var(--color-gold-main) 100%);
+  --dark-gradient: linear-gradient(180deg, rgba(7, 7, 9, 0) 0%, #070709 100%);
+  --red-gradient: linear-gradient(135deg, #ff6666 0%, var(--color-red-accent) 100%);
+
+  /* Fonts */
+  --font-family-title: var(--font-montserrat), sans-serif;
+  --font-family-sans: var(--font-outfit), sans-serif;
+
+  /* Shadows & Borders */
+  --border-glass: 1px solid rgba(228, 166, 47, 0.15);
+  --border-glass-active: 1px solid rgba(228, 166, 47, 0.4);
+  --shadow-gold-glow: 0 0 15px rgba(228, 166, 47, 0.2);
+  --shadow-red-glow: 0 0 15px rgba(255, 51, 51, 0.35);
+  
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-html {
-  height: 100%;
-}
-
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
-body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
+/* Reset and Global Styles */
 * {
   box-sizing: border-box;
   padding: 0;
   margin: 0;
+}
+
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-family-sans);
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-family-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 a {
@@ -42,8 +58,180 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+/* Custom Web Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold-dark);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-main);
+}
+
+/* Mobile-First Layout Containers */
+.mobile-container {
+  width: 100%;
+  max-width: 480px; /* Standard smartphone width */
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #070709;
+}
+
+/* Utility Classes */
+.gold-text {
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.gold-border {
+  border: var(--border-glass);
+  box-shadow: var(--shadow-gold-glow);
+}
+
+.glass-card {
+  background: var(--color-bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: var(--border-glass);
+  border-radius: 16px;
+  padding: 20px;
+  transition: var(--transition-smooth);
+}
+
+.glass-card:hover {
+  border: var(--border-glass-active);
+  box-shadow: var(--shadow-gold-glow);
+}
+
+/* Buttons */
+.btn-gold {
+  background: var(--gold-gradient);
+  color: #070709;
+  border: none;
+  font-family: var(--font-family-title);
+  font-weight: 700;
+  border-radius: 30px;
+  padding: 14px 28px;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  box-shadow: var(--shadow-gold-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-gold:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 25px rgba(228, 166, 47, 0.45);
+}
+
+.btn-gold:active {
+  transform: translateY(0);
+}
+
+.btn-outline {
+  background: transparent;
+  color: #ffffff;
+  border: 1.5px solid var(--color-gold-main);
+  font-family: var(--font-family-title);
+  font-weight: 600;
+  border-radius: 30px;
+  padding: 12px 26px;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-outline:hover {
+  background: rgba(228, 166, 47, 0.1);
+  box-shadow: var(--shadow-gold-glow);
+}
+
+/* Animations */
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 51, 51, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 51, 51, 0);
+  }
+}
+
+.live-indicator {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-red-accent);
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse-red 2s infinite;
+  box-shadow: var(--shadow-red-glow);
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.floating {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Section styling helper */
+.section-padding {
+  padding: 40px 20px;
+}
+
+.section-title {
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  letter-spacing: 0.05em;
+  position: relative;
+  display: inline-block;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: var(--gold-gradient);
+}
+
+/* Desktop Preview Enhancements */
+@media (min-width: 481px) {
+  body {
+    background-color: #0d0d12;
+    background-image: radial-gradient(circle at top, rgba(228, 166, 47, 0.04) 0%, rgba(7, 7, 9, 0) 70%);
+  }
+  .mobile-container {
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.85), 0 0 1px rgba(228, 166, 47, 0.25);
+    border-left: 1px solid rgba(228, 166, 47, 0.08);
+    border-right: 1px solid rgba(228, 166, 47, 0.08);
   }
 }
