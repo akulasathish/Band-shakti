@@ -226,6 +226,26 @@ export default function About() {
           font-weight: 500;
           margin: 0;
         }
+
+        @media (min-width: 768px) {
+          .about-wrapper {
+            max-width: 800px;
+            margin: 0 auto 48px auto;
+            text-align: center;
+          }
+          .members-grid {
+            flex-direction: row;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 32px;
+          }
+          .member-card {
+            width: calc(25% - 15px); /* 4 columns on desktop */
+            min-width: 220px;
+          }
+        }
+      
       `}</style>
     </section>
   );

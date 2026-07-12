@@ -76,7 +76,7 @@ a {
 /* Mobile-First Layout Containers */
 .mobile-container {
   width: 100%;
-  max-width: 480px; /* Standard smartphone width */
+  max-width: 100%; /* Fully fluid on desktop, standard mobile on phones */
   margin: 0 auto;
   min-height: 100vh;
   position: relative;
@@ -267,15 +267,12 @@ textarea {
   resize: none;
 }
 
-/* Desktop Preview Enhancements */
-@media (min-width: 481px) {
+/* Desktop Layout Enhancements */
+@media (min-width: 768px) {
   body {
-    background-color: #0d0d12;
-    background-image: radial-gradient(circle at top, rgba(228, 166, 47, 0.04) 0%, rgba(7, 7, 9, 0) 70%);
+    background-color: #070709;
   }
-  .mobile-container {
-    box-shadow: 0 0 60px rgba(0, 0, 0, 0.85), 0 0 1px rgba(228, 166, 47, 0.25);
-    border-left: 1px solid rgba(228, 166, 47, 0.08);
-    border-right: 1px solid rgba(228, 166, 47, 0.08);
+  .section-padding {
+    padding: 80px 40px;
   }
 }

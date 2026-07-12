@@ -486,6 +486,18 @@ export default function Booking() {
         .claim-deal-btn {
           width: 100%;
         }
+
+        @media (min-width: 768px) {
+          .booking-card {
+            max-width: 600px;
+            margin: 0 auto;
+          }
+          .booking-intro {
+            text-align: center;
+            max-width: 600px;
+            margin: -12px auto 32px auto;
+          }
+        }
       `}</style>
     </section>
   );

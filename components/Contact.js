@@ -266,6 +266,27 @@ export default function Contact() {
           color: var(--color-gold-dark);
           text-transform: uppercase;
         }
+
+        @media (min-width: 768px) {
+          .contact-card {
+            max-width: 600px;
+            margin: 0 auto 40px auto;
+          }
+          .contact-intro {
+            text-align: center;
+            max-width: 600px;
+            margin: -12px auto 24px auto;
+          }
+          .contact-footer {
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px 20px 20px;
+          }
+        }
+      
       `}</style>
     </section>
   );

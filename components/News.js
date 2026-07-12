@@ -107,6 +107,24 @@ export default function News() {
           color: var(--color-text-muted);
           line-height: 1.5;
         }
+
+        @media (min-width: 768px) {
+          .news-list {
+            flex-direction: row;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+          }
+          .news-card {
+            flex: 1;
+          }
+          .news-intro {
+            text-align: center;
+            max-width: 600px;
+            margin: -12px auto 24px auto;
+          }
+        }
+      
       `}</style>
     </section>
   );

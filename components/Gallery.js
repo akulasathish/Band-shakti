@@ -268,6 +268,21 @@ export default function Gallery() {
           font-weight: 500;
           letter-spacing: 0.05em;
         }
+
+        @media (min-width: 768px) {
+          .gallery-grid {
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            max-width: 1200px;
+            margin: 16px auto 0 auto;
+          }
+          .gallery-intro {
+            text-align: center;
+            max-width: 600px;
+            margin: -12px auto 20px auto;
+          }
+        }
+      
       `}</style>
     </section>
   );

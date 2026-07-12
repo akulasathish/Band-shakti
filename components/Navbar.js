@@ -30,6 +30,15 @@ export default function Navbar() {
               className="logo-img"
             />
           </div>
+
+          <nav className="desktop-nav-links">
+            <button className="desktop-nav-link" onClick={() => handleNavClick('home')}>Home</button>
+            <button className="desktop-nav-link" onClick={() => handleNavClick('about')}>About</button>
+            <button className="desktop-nav-link" onClick={() => handleNavClick('band')}>Members</button>
+            <button className="desktop-nav-link" onClick={() => handleNavClick('gallery')}>Gallery</button>
+            <button className="desktop-nav-link" onClick={() => handleNavClick('news')}>News</button>
+            <button className="desktop-nav-link" onClick={() => handleNavClick('contact')}>Contact</button>
+          </nav>
           
           <div className="nav-actions">
             {/* Quick Ticket CTA */}
@@ -82,6 +91,40 @@ export default function Navbar() {
       </div>
 
       <style jsx>{`
+        .desktop-nav-links {
+          display: none;
+          gap: 20px;
+        }
+
+        .desktop-nav-link {
+          background: transparent;
+          border: none;
+          color: var(--color-text-muted);
+          font-family: var(--font-family-title);
+          font-size: 0.8rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          cursor: pointer;
+          transition: var(--transition-smooth);
+          padding: 6px 0;
+          position: relative;
+        }
+
+        .desktop-nav-link:hover {
+          color: var(--color-gold-main);
+        }
+
+        .desktop-nav-link:hover::after {
+          content: '';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          height: 1.5px;
+          background: var(--gold-gradient);
+        }
+
         .sticky-nav {
           position: sticky;
           top: 0;
@@ -268,6 +311,22 @@ export default function Navbar() {
 
         .dot-divider {
           color: var(--color-gold-dark);
+        }
+
+        @media (min-width: 768px) {
+          .desktop-nav-links {
+            display: flex;
+          }
+          .hamburger {
+            display: none !important;
+          }
+          .nav-container {
+            justify-content: space-between;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 0 20px;
+          }
         }
        style-jsx-placeholder-1`}</style>
     </>
