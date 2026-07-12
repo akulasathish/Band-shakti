@@ -27,15 +27,12 @@ export default function Booking() {
     let paidQty = quantity;
     let free = 0;
 
-    if (quantity >= 2 && quantity < 5) {
+    if (quantity >= 5 && quantity < 8) {
       free = 1;
-      setPromoMessage('🔥 OFFER APPLIED: Buy 2 Get 1 Free!');
-    } else if (quantity >= 5 && quantity < 10) {
+      setPromoMessage('🔥 LIMITED OFFER: Buy 5 Get 1 Free!');
+    } else if (quantity >= 8) {
       free = 2;
-      setPromoMessage('🎉 MEGAPACK APPLIED: Buy 5 Get 2 Free!');
-    } else if (quantity >= 10) {
-      free = 3;
-      setPromoMessage('🎸 ROCKSTAR PACK APPLIED: Buy 10 Get 3 Free!');
+      setPromoMessage('🎉 MEGAPACK APPLIED: Buy 8 Get 2 Free!');
     } else {
       setPromoMessage('');
     }
@@ -169,19 +166,14 @@ export default function Booking() {
             <p className="popup-subtitle">Group Booking Discounts Active Now!</p>
             
             <div className="offers-list">
-              <div className="offer-card-item" onClick={() => { setQuantity(2); setShowPromoPopup(false); }}>
-                <span className="offer-title">TRIO PACK (2 + 1)</span>
-                <span className="offer-details">Buy 2, Get 1 Ticket Free!</span>
+              <div className="offer-card-item" onClick={() => { setQuantity(5); setShowPromoPopup(false); }}>
+                <span className="offer-title">LIMITED OFFER (5 + 1)</span>
+                <span className="offer-details">Buy 5, Get 1 Ticket Free!</span>
               </div>
               
-              <div className="offer-card-item" onClick={() => { setQuantity(5); setShowPromoPopup(false); }}>
-                <span className="offer-title">SQUAD PACK (5 + 2)</span>
-                <span className="offer-details">Buy 5, Get 2 Tickets Free!</span>
-              </div>
-
-              <div className="offer-card-item" onClick={() => { setQuantity(10); setShowPromoPopup(false); }}>
-                <span className="offer-title">ROCKSTAR PACK (10 + 3)</span>
-                <span className="offer-details">Buy 10, Get 3 Tickets Free!</span>
+              <div className="offer-card-item" onClick={() => { setQuantity(8); setShowPromoPopup(false); }}>
+                <span className="offer-title">MEGA ROCKSTAR PACK (8 + 2)</span>
+                <span className="offer-details">Buy 8, Get 2 Tickets Free!</span>
               </div>
             </div>
 
