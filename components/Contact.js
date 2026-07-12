@@ -50,7 +50,7 @@ export default function Contact() {
 
             {/* WhatsApp Method */}
             <a 
-              href="https://wa.me/918686113435?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!" 
+              href="https://wa.me/918897963589?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!" 
               target="_blank" 
               rel="noopener noreferrer" 
               className="method-item"
@@ -62,7 +62,7 @@ export default function Contact() {
               </div>
               <div className="method-details">
                 <span className="method-label">WhatsApp Bookings</span>
-                <span className="method-value">+91 86861 13435</span>
+                <span className="method-value">+91 88979 63589</span>
               </div>
             </a>
 
@@ -156,7 +156,7 @@ export default function Contact() {
 
       {/* Floating WhatsApp Widget (Pulsing and sticky in bottom-right) */}
       <a 
-        href="https://wa.me/918686113435?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!"
+        href="https://wa.me/918897963589?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!"
         target="_blank" 
         rel="noopener noreferrer" 
         className="whatsapp-float-btn"
@@ -188,7 +188,7 @@ export default function Contact() {
               <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
             </svg>
           </a>
-          <a href="https://wa.me/918686113435?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="WhatsApp">
+          <a href="https://wa.me/918897963589?text=Hi%20Band%20Shakthi,%20I%20would%20like%20to%20inquire%20about%20booking%20your%20live%20band!" target="_blank" rel="noopener noreferrer" className="social-icon-link" aria-label="WhatsApp">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.457L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.963-1.862-1.862-4.336-2.883-6.97-2.884-5.437 0-9.86 4.37-9.864 9.797-.001 1.677.452 3.313 1.312 4.737L1.882 19.3l4.765-1.246zm11.722-6.505c-.29-.145-1.716-.848-1.983-.944-.266-.096-.46-.145-.653.145-.193.29-.747.944-.917 1.137-.17.193-.341.217-.63.073-.29-.145-1.229-.453-2.34-1.445-.864-.771-1.447-1.723-1.616-2.013-.17-.29-.018-.447.127-.59.13-.129.29-.34.435-.508.145-.17.193-.29.29-.483.097-.193.048-.361-.024-.507-.072-.145-.653-1.571-.895-2.152-.236-.569-.475-.492-.653-.502-.17-.008-.363-.01-.556-.01-.193 0-.507.072-.772.361-.266.29-1.014.992-1.014 2.417s1.038 2.8 1.182 2.994c.145.193 2.04 3.115 4.94 4.373.69.299 1.228.479 1.648.612.693.22 1.324.19 1.823.115.556-.084 1.716-.7 1.958-1.378.24-.677.24-1.258.17-1.378-.073-.122-.266-.194-.556-.34z"/>
             </svg>
