@@ -12,6 +12,7 @@ export default function AdminPage() {
   
   // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'csv' | 'media'
   const [activeTab, setActiveTab] = useState('stats');
+  const [stickerCount, setStickerCount] = useState(100);
   
   // Scanner States
   const [scanResult, setScanResult] = useState(null);
@@ -689,15 +690,54 @@ export default function AdminPage() {
 
             {/* Step 1: Scan sticker */}
             {(!scanResult || scanResult.status !== 'READY_TO_ACTIVATE') && (
-              <div className="scanner-container">
-                <div id="sell-scanner-reader" className="qr-reader-window"></div>
-                {!isScanning && (
-                  <div className="scanner-placeholder">
-                    <span className="spinner"></span>
-                    <p>Starting Camera Feed...</p>
+              <>
+                <div className="scanner-container">
+                  <div id="sell-scanner-reader" className="qr-reader-window"></div>
+                  {!isScanning && (
+                    <div className="scanner-placeholder">
+                      <span className="spinner"></span>
+                      <p>Starting Camera Feed...</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Sticker Sheet Generator helper */}
+                <div className="glass-card sticker-generator-card" style={{ marginTop: '20px', padding: '16px' }}>
+                  <h4 style={{ fontSize: '0.95rem', color: 'var(--color-gold-light)', marginBottom: '4px' }}>
+                    Generate Printer QR Sheets
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                    Generate sheets of unique QR codes to print out at a nearby sticker shop, then paste them onto physical passes at the pub.
+                  </p>
+                  
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                    <input 
+                      type="number" 
+                      value={stickerCount} 
+                      onChange={(e) => setStickerCount(Math.max(1, parseInt(e.target.value) || 0))}
+                      min="1" 
+                      max="200"
+                      style={{ 
+                        width: '75px', 
+                        textAlign: 'center', 
+                        background: '#070709', 
+                        border: '1px solid rgba(228, 166, 47, 0.2)', 
+                        color: '#fff', 
+                        borderRadius: '6px',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn-gold" 
+                      onClick={() => window.open(`/admin/stickers?count=${stickerCount}`, '_blank')}
+                      style={{ flex: 1, padding: '8px 12px', fontSize: '0.8rem' }}
+                    >
+                      Open Printable QR Sheet
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
+              </>
             )}
 
             {/* Step 2: Input guest details to activate */}
