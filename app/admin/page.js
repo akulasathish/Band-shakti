@@ -42,6 +42,9 @@ export default function AdminPage() {
   const [newEventPrice, setNewEventPrice] = useState('500');
   const [newEventCapacity, setNewEventCapacity] = useState('400');
 
+  // --- SUB-NAVIGATION MEDIA TAB STATE ---
+  const [mediaSubTab, setMediaSubTab] = useState('menu'); // 'menu' | 'banners' | 'members' | 'gallery'
+
   // CSV Import States
   const [csvFile, setCsvFile] = useState(null);
   const [importedLogs, setImportedLogs] = useState([
@@ -218,7 +221,6 @@ export default function AdminPage() {
         const totalPaxSold = paidTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
         const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
         
-        // Retrieve ticket prices dynamically or default to 500
         const revenueAmount = paidTickets.reduce((sum, t) => {
           return sum + ((t.pax || 1) * 500);
         }, 0);
@@ -274,7 +276,7 @@ export default function AdminPage() {
           venue: newEventVenue,
           ticket_price: parseFloat(newEventPrice) || 500,
           total_capacity: parseInt(newEventCapacity) || 400,
-          is_active: false // Created inactive, admin switches to activate
+          is_active: false
         });
 
       if (error) throw error;
@@ -298,7 +300,6 @@ export default function AdminPage() {
   const handleSetActiveEvent = async (eventId) => {
     setIsUploading(true);
     try {
-      // 1. Mark all other events inactive
       const { error: err1 } = await supabase
         .from('events')
         .update({ is_active: false })
@@ -306,7 +307,6 @@ export default function AdminPage() {
 
       if (err1) throw err1;
 
-      // 2. Mark selected event active
       const { error: err2 } = await supabase
         .from('events')
         .update({ is_active: true })
@@ -641,6 +641,31 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteImage = async (id, url) => {
+    if (!confirm('Are you sure you want to delete this photo from the concert gallery?')) return;
+    setIsUploading(true);
+    try {
+      if (url.includes('/storage/v1/object/public/gallery/')) {
+        const fileName = url.split('/').pop();
+        await supabase.storage.from('gallery').remove([fileName]);
+      }
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Photo deleted successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to delete photo:", err);
+      alert("Delete failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Real Gate check-in verification logic
   const handleScanSuccess = async (decodedText) => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
@@ -726,7 +751,6 @@ export default function AdminPage() {
           });
         }
       } else if (activeTab === 'sell') {
-        // Counter sell activation scan
         setScanResult({
           status: 'READY_TO_ACTIVATE',
           qrId: ticketId
@@ -769,7 +793,6 @@ export default function AdminPage() {
 
       if (dbError) throw dbError;
 
-      // Save activated ticket details so the cashier can download the PDF pass card
       setActivationResult({
         success: true,
         message: `Pass Activated! Pre-printed QR sticker is now bound to "${guestName}" for ${guestPax} pax.`,
@@ -806,7 +829,6 @@ export default function AdminPage() {
     setCsvFile(null);
   };
 
-  // Helper trigger to manually simulate scanning during desktop testing
   const handleSimulateScanInput = (inputId) => {
     const inputEl = document.getElementById(inputId);
     const value = inputEl ? inputEl.value.trim() : '';
@@ -1074,7 +1096,7 @@ export default function AdminPage() {
               <div style={{ background: 'rgba(32, 186, 90, 0.05)', border: '1px solid rgba(32, 186, 90, 0.2)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <div className="live-indicator" style={{ backgroundColor: '#20ba5a', boxShadow: '0 0 10px rgba(32, 186, 90, 0.6)' }}></div>
-                  <span style={{ fontSize: '0.65rem', color: '#20ba5a', fontWeight: 'bold', uppercase: 'true' }}>CURRENT ACTIVE EVENT</span>
+                  <span style={{ fontSize: '0.65rem', color: '#20ba5a', fontWeight: 'bold', textTransform: 'uppercase' }}>CURRENT ACTIVE EVENT</span>
                 </div>
                 <h5 style={{ fontSize: '0.9rem', margin: '4px 0', color: '#fff' }}>{activeEvent.title}</h5>
                 <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>ID: {activeEvent.id || 'None'}</span>
@@ -1461,229 +1483,311 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* mediaSubTab === 'menu' (Grid Selector Overview) */}
+            {mediaSubTab === 'menu' && (
+              <div className="media-menu-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
+                <div 
+                  className="glass-card media-menu-card" 
+                  onClick={() => setMediaSubTab('banners')}
+                  style={{ cursor: 'pointer', padding: '16px', display: 'flex', gap: '16px', alignItems: 'center', transition: 'transform 0.2s' }}
+                >
+                  <div className="menu-icon-box" style={{ background: 'rgba(228, 166, 47, 0.1)', border: '1px solid rgba(228, 166, 47, 0.2)', borderRadius: '10px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="var(--color-gold-main)">
+                      <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', color: 'var(--color-gold-light)', fontSize: '0.95rem' }}>1. Top Header Slider Banners</h4>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                      Customize slide backgrounds, titles, subtitles, and descriptions for the main homepage carousel.
+                    </p>
+                  </div>
+                </div>
+
+                <div 
+                  className="glass-card media-menu-card" 
+                  onClick={() => setMediaSubTab('members')}
+                  style={{ cursor: 'pointer', padding: '16px', display: 'flex', gap: '16px', alignItems: 'center', transition: 'transform 0.2s' }}
+                >
+                  <div className="menu-icon-box" style={{ background: 'rgba(228, 166, 47, 0.1)', border: '1px solid rgba(228, 166, 47, 0.2)', borderRadius: '10px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="var(--color-gold-main)">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', color: 'var(--color-gold-light)', fontSize: '0.95rem' }}>2. Band Member Profiles</h4>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                      Create, edit, upload portraits, and delete dynamic band member biography profile cards.
+                    </p>
+                  </div>
+                </div>
+
+                <div 
+                  className="glass-card media-menu-card" 
+                  onClick={() => setMediaSubTab('gallery')}
+                  style={{ cursor: 'pointer', padding: '16px', display: 'flex', gap: '16px', alignItems: 'center', transition: 'transform 0.2s' }}
+                >
+                  <div className="menu-icon-box" style={{ background: 'rgba(228, 166, 47, 0.1)', border: '1px solid rgba(228, 166, 47, 0.2)', borderRadius: '10px', width: '50px', height: '50px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="var(--color-gold-main)">
+                      <path d="M22 16V4c0-1.1-.9-2-2-2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2zm-11-4l2.03 2.71L16 11l4 5H8l3-4zM2 6v14c0 1.1.9 2 2 2h14v-2H4V6H2z"/>
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', color: 'var(--color-gold-light)', fontSize: '0.95rem' }}>3. Concert Photo Gallery</h4>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--color-text-muted)', lineHeight: '1.4' }}>
+                      Upload live gig photos and manage the masonry gallery on the home page.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Sub-tab Views */}
+            {mediaSubTab !== 'menu' && (
+              <button 
+                type="button" 
+                className="btn-outline" 
+                style={{ fontSize: '0.75rem', padding: '6px 12px', width: 'fit-content', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', borderRadius: '6px' }}
+                onClick={() => setMediaSubTab('menu')}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Back to Media Menu
+              </button>
+            )}
+
             <div className="media-forms">
               
-              {/* Dynamic Banners Section */}
-              <div className="glass-card media-editor-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0 }}>1. Top Header Slider Banners</h4>
-                  <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddBanner}>
-                    + Add Slide
-                  </button>
+              {/* SUBTAB 1: Dynamic Banners Section */}
+              {mediaSubTab === 'banners' && (
+                <div className="glass-card media-editor-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 style={{ margin: 0 }}>1. Top Header Slider Banners</h4>
+                    <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddBanner}>
+                      + Add Slide
+                    </button>
+                  </div>
+                  <p className="section-desc-small">Add, delete, or modify slides in the homepage background carousel.</p>
+                  
+                  <div className="admin-banner-row" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                    {banners.length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center' }}>
+                        No custom slides in database. Homepage is currently using the 2 default slides. Click "+ Add Slide" to start customizing!
+                      </p>
+                    ) : (
+                      banners.map((slide, idx) => (
+                        <div key={slide.id} className="banner-preview-box" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px', padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(228, 166, 47, 0.05)', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <div 
+                              className="banner-preview-thumb" 
+                              style={{ backgroundImage: `url(${slide.url})`, width: '80px', height: '50px', borderRadius: '4px', backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0 }}
+                            ></div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#fff' }}>Background Slide #{idx + 1}</span>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <label className="btn-gold" style={{ fontSize: '0.6rem', padding: '4px 8px', margin: 0, cursor: 'pointer', borderRadius: '4px' }}>
+                                  Change Pic
+                                  <input 
+                                    type="file" 
+                                    accept="image/*" 
+                                    style={{ display: 'none' }}
+                                    onChange={(e) => handleUploadBannerImage(e, slide.id)}
+                                    disabled={isUploading}
+                                  />
+                                </label>
+                                <button 
+                                  type="button" 
+                                  className="btn-outline" 
+                                  style={{ fontSize: '0.6rem', padding: '4px 8px', borderColor: '#ff5252', color: '#ff5252', borderRadius: '4px' }}
+                                  onClick={() => handleDeleteBanner(slide.id, slide.url)}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="input-group-mini">
+                            <label>Title</label>
+                            <input 
+                              type="text" 
+                              className="mini-text-input"
+                              value={slide.title}
+                              onChange={(e) => handleBannerTextChange(slide.id, 'title', e.target.value)}
+                            />
+                          </div>
+
+                          <div className="input-group-mini">
+                            <label>Subtitle</label>
+                            <input 
+                              type="text" 
+                              className="mini-text-input"
+                              value={slide.subtitle}
+                              onChange={(e) => handleBannerTextChange(slide.id, 'subtitle', e.target.value)}
+                            />
+                          </div>
+
+                          <div className="input-group-mini">
+                            <label>Description</label>
+                            <input 
+                              type="text" 
+                              className="mini-text-input"
+                              value={slide.desc}
+                              onChange={(e) => handleBannerTextChange(slide.id, 'desc', e.target.value)}
+                            />
+                          </div>
+
+                          <button 
+                            type="button" 
+                            className="btn-gold" 
+                            style={{ fontSize: '0.7rem', padding: '6px 12px', width: '100%', marginTop: '4px', borderRadius: '6px' }}
+                            onClick={() => handleSaveBannerDetails(slide.id, slide.title, slide.subtitle, slide.desc)}
+                          >
+                            Save Text Details
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-                <p className="section-desc-small">Add, delete, or modify slides in the homepage background carousel.</p>
-                
-                <div className="admin-banner-row" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  {banners.length === 0 ? (
-                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center' }}>
-                      No custom slides in database. Homepage is currently using the 2 default slides. Click "+ Add Slide" to start customizing!
-                    </p>
-                  ) : (
-                    banners.map((slide, idx) => (
-                      <div key={slide.id} className="banner-preview-box" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px', padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(228, 166, 47, 0.05)', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                          <div 
-                            className="banner-preview-thumb" 
-                            style={{ backgroundImage: `url(${slide.url})`, width: '80px', height: '50px', borderRadius: '4px', backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0 }}
-                          ></div>
-                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#fff' }}>Background Slide #{idx + 1}</span>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <label className="btn-gold" style={{ fontSize: '0.6rem', padding: '4px 8px', margin: 0, cursor: 'pointer', borderRadius: '4px' }}>
-                                Change Pic
+              )}
+
+              {/* SUBTAB 2: Dynamic Band Members Section */}
+              {mediaSubTab === 'members' && (
+                <div className="glass-card media-editor-section">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 style={{ margin: 0 }}>2. Band Member Profiles</h4>
+                    <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddMember}>
+                      + Add Member
+                    </button>
+                  </div>
+                  <p className="section-desc-small">Change photos, display names, and roles on the homepage.</p>
+
+                  <div className="admin-members-grid" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {bandMembers.length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center', width: '100%' }}>
+                        No custom members in database. Homepage is currently using the 4 default profiles. Click "+ Add Member" to start customizing!
+                      </p>
+                    ) : (
+                      bandMembers.map((member, idx) => (
+                        <div key={member.id} className="admin-member-upload-card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(228, 166, 47, 0.05)' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '70px', flexShrink: 0 }}>
+                            <div 
+                              className="admin-member-thumb"
+                              style={{ backgroundImage: `url(${member.url})`, width: '65px', height: '65px', borderRadius: '50%', backgroundSize: 'cover', backgroundPosition: 'center' }}
+                            ></div>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>Member #{idx + 1}</span>
+                          </div>
+                          
+                          <div className="admin-member-details" style={{ flex: 1 }}>
+                            <div className="input-group-mini">
+                              <label>Display Name</label>
+                              <input 
+                                type="text" 
+                                className="mini-text-input"
+                                value={member.name}
+                                onChange={(e) => handleMemberTextChange(member.id, 'name', e.target.value)}
+                              />
+                            </div>
+                            
+                            <div className="input-group-mini" style={{ marginTop: '6px' }}>
+                              <label>Band Role</label>
+                              <input 
+                                type="text" 
+                                className="mini-text-input"
+                                value={member.role}
+                                onChange={(e) => handleMemberTextChange(member.id, 'role', e.target.value)}
+                              />
+                            </div>
+                            
+                            <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                              <button 
+                                type="button" 
+                                className="btn-outline btn-mini-act" 
+                                onClick={() => handleSaveMemberText(member.id, member.name, member.role)}
+                                disabled={isUploading}
+                              >
+                                Save Text
+                              </button>
+                              <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
+                                Upload Pic
                                 <input 
                                   type="file" 
                                   accept="image/*" 
                                   style={{ display: 'none' }}
-                                  onChange={(e) => handleUploadBannerImage(e, slide.id)}
+                                  onChange={(e) => handleUploadMemberImage(e, member.id)}
                                   disabled={isUploading}
                                 />
                               </label>
                               <button 
                                 type="button" 
-                                className="btn-outline" 
-                                style={{ fontSize: '0.6rem', padding: '4px 8px', borderColor: '#ff5252', color: '#ff5252', borderRadius: '4px' }}
-                                onClick={() => handleDeleteBanner(slide.id, slide.url)}
+                                className="btn-outline btn-mini-act" 
+                                style={{ borderColor: '#ff5252', color: '#ff5252' }}
+                                onClick={() => handleDeleteMember(member.id, member.url)}
+                                disabled={isUploading}
                               >
                                 Delete
                               </button>
                             </div>
                           </div>
                         </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
-                        <div className="input-group-mini">
-                          <label>Title</label>
-                          <input 
-                            type="text" 
-                            className="mini-text-input"
-                            value={slide.title}
-                            onChange={(e) => handleBannerTextChange(slide.id, 'title', e.target.value)}
-                          />
-                        </div>
+              {/* SUBTAB 3: Concert Photo Gallery (masonry list) */}
+              {mediaSubTab === 'gallery' && (
+                <div className="glass-card media-editor-section">
+                  <h4>3. Concert Photo Gallery</h4>
+                  <p className="section-desc-small">Add new show photos to the main landing page masonry grid.</p>
+                  
+                  <div className="media-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Upload Live Concert Photos</span>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      multiple 
+                      onChange={handleMultipleImageUpload}
+                      disabled={isUploading}
+                      style={{ background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.8rem' }}
+                    />
+                  </div>
 
-                        <div className="input-group-mini">
-                          <label>Subtitle</label>
-                          <input 
-                            type="text" 
-                            className="mini-text-input"
-                            value={slide.subtitle}
-                            onChange={(e) => handleBannerTextChange(slide.id, 'subtitle', e.target.value)}
-                          />
-                        </div>
-
-                        <div className="input-group-mini">
-                          <label>Description</label>
-                          <input 
-                            type="text" 
-                            className="mini-text-input"
-                            value={slide.desc}
-                            onChange={(e) => handleBannerTextChange(slide.id, 'desc', e.target.value)}
-                          />
-                        </div>
-
-                        <button 
-                          type="button" 
-                          className="btn-gold" 
-                          style={{ fontSize: '0.7rem', padding: '6px 12px', width: '100%', marginTop: '4px', borderRadius: '6px' }}
-                          onClick={() => handleSaveBannerDetails(slide.id, slide.title, slide.subtitle, slide.desc)}
-                        >
-                          Save Text Details
-                        </button>
+                  <div className="admin-gallery-preview" style={{ marginTop: '20px', borderTop: '1px dashed rgba(228, 166, 47, 0.15)', paddingTop: '16px' }}>
+                    <h5 style={{ color: '#fff', fontSize: '0.85rem', marginBottom: '12px' }}>Currently in Gallery ({galleryOnlyImages.length})</h5>
+                    {galleryOnlyImages.length === 0 ? (
+                      <p className="no-images-text" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>No uploaded images yet. Use the selector above to upload!</p>
+                    ) : (
+                      <div className="admin-gallery-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                        {galleryOnlyImages.map((img) => (
+                          <div key={img.id} className="admin-gallery-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                            <div 
+                              className="admin-gallery-thumb" 
+                              style={{ backgroundImage: `url(${img.url})`, width: '100%', aspectRatio: '1', backgroundSize: 'cover', backgroundPosition: 'center', borderRadius: '6px', position: 'relative', border: '1px solid rgba(228, 166, 47, 0.1)' }}
+                            >
+                              <button 
+                                type="button"
+                                className="btn-delete-img"
+                                onClick={() => handleDeleteImage(img.id, img.url)}
+                                title="Delete Image"
+                                style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(255, 51, 51, 0.9)', border: 'none', color: '#fff', width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                              >
+                                ×
+                              </button>
+                            </div>
+                            <span className="img-desc-label" title={img.description} style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', width: '100%', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textTextOverflow: 'ellipsis' }}>
+                              {img.description?.substring(0, 16) || 'Untitled'}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-
-              {/* Dynamic Band Members Section */}
-              <div className="glass-card media-editor-section">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <h4 style={{ margin: 0 }}>2. Band Member Profiles</h4>
-                  <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddMember}>
-                    + Add Member
-                  </button>
-                </div>
-                <p className="section-desc-small">Change photos, display names, and roles on the homepage.</p>
-
-                <div className="admin-members-grid" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {bandMembers.length === 0 ? (
-                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center', width: '100%' }}>
-                      No custom members in database. Homepage is currently using the 4 default profiles. Click "+ Add Member" to start customizing!
-                    </p>
-                  ) : (
-                    bandMembers.map((member, idx) => (
-                      <div key={member.id} className="admin-member-upload-card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(228, 166, 47, 0.05)' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '70px', flexShrink: 0 }}>
-                          <div 
-                            className="admin-member-thumb"
-                            style={{ backgroundImage: `url(${member.url})`, width: '65px', height: '65px', borderRadius: '50%', backgroundSize: 'cover', backgroundPosition: 'center' }}
-                          ></div>
-                          <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>Member #{idx + 1}</span>
-                        </div>
-                        
-                        <div className="admin-member-details" style={{ flex: 1 }}>
-                          <div className="input-group-mini">
-                            <label>Display Name</label>
-                            <input 
-                              type="text" 
-                              className="mini-text-input"
-                              value={member.name}
-                              onChange={(e) => handleMemberTextChange(member.id, 'name', e.target.value)}
-                            />
-                          </div>
-                          
-                          <div className="input-group-mini" style={{ marginTop: '6px' }}>
-                            <label>Band Role</label>
-                            <input 
-                              type="text" 
-                              className="mini-text-input"
-                              value={member.role}
-                              onChange={(e) => handleMemberTextChange(member.id, 'role', e.target.value)}
-                            />
-                          </div>
-                          
-                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
-                            <button 
-                              type="button" 
-                              className="btn-outline btn-mini-act" 
-                              onClick={() => handleSaveMemberText(member.id, member.name, member.role)}
-                              disabled={isUploading}
-                            >
-                              Save Text
-                            </button>
-                            <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
-                              Upload Pic
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                style={{ display: 'none' }}
-                                onChange={(e) => handleUploadMemberImage(e, member.id)}
-                                disabled={isUploading}
-                              />
-                            </label>
-                            <button 
-                              type="button" 
-                              className="btn-outline btn-mini-act" 
-                              style={{ borderColor: '#ff5252', color: '#ff5252' }}
-                              onClick={() => handleDeleteMember(member.id, member.url)}
-                              disabled={isUploading}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Section 3: Concert Photo Gallery (Already Fully Dynamic) */}
-              <div className="glass-card media-editor-section">
-                <h4>3. Concert Photo Gallery</h4>
-                <p className="section-desc-small">Add new show photos to the main landing page masonry grid.</p>
-                
-                <div className="media-row">
-                  <span>Upload Live Concert Photos</span>
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    multiple 
-                    onChange={handleMultipleImageUpload}
-                    disabled={isUploading}
-                  />
-                </div>
-
-                {/* Uploaded Gallery Grid preview */}
-                <div className="admin-gallery-preview">
-                  <h5>Currently in Gallery ({galleryOnlyImages.length})</h5>
-                  {galleryOnlyImages.length === 0 ? (
-                    <p className="no-images-text">No uploaded images yet. Use the selector above to test!</p>
-                  ) : (
-                    <div className="admin-gallery-grid">
-                      {galleryOnlyImages.map((img) => (
-                        <div key={img.id} className="admin-gallery-item">
-                          <div 
-                            className="admin-gallery-thumb" 
-                            style={{ backgroundImage: `url(${img.url})` }}
-                          >
-                            <button 
-                              className="btn-delete-img"
-                              onClick={() => handleDeleteImage(img.id, img.url)}
-                              title="Delete Image"
-                            >
-                              ×
-                            </button>
-                          </div>
-                          <span className="img-desc-label" title={img.description}>
-                            {img.description?.substring(0, 16) || 'Untitled'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+              )}
 
             </div>
           </div>
@@ -1721,7 +1825,7 @@ export default function AdminPage() {
           <span>CSV Import</span>
         </button>
 
-        <button className={`tab-link ${activeTab === 'media' ? 'active' : ''}`} onClick={() => setActiveTab('media')}>
+        <button className={`tab-link ${activeTab === 'media' ? 'active' : ''}`} onClick={() => { setActiveTab('media'); setMediaSubTab('menu'); }}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
           </svg>
@@ -1864,6 +1968,19 @@ export default function AdminPage() {
         .action-box p {
           font-size: 0.8rem;
           color: var(--color-text-muted);
+        }
+
+        /* Media Menu styling */
+        .media-menu-card {
+          border: 1px solid rgba(228, 166, 47, 0.1);
+          background: rgba(18, 18, 24, 0.6);
+          transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .media-menu-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(228, 166, 47, 0.35);
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
 
         /* QR Scanner Reader Styling */
