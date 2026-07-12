@@ -618,7 +618,7 @@ export default function AdminPage() {
   // --- LOGIN SCREEN ---
   if (!isAuthenticated) {
     return (
-      <main className="mobile-container login-page">
+      <main className="admin-mobile-container login-page">
         <div className="login-logo-wrapper">
           <Image 
             src="/logo.png" 
@@ -730,7 +730,7 @@ export default function AdminPage() {
 
   // --- LOGGED IN ADMIN APP ---
   return (
-    <main className="mobile-container admin-app">
+    <main className="admin-mobile-container admin-app">
       {/* App Header */}
       <header className="admin-header">
         <Image src="/logo.png" alt="Logo" width={110} height={38} className="logo-img" />

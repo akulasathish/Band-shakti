@@ -85,6 +85,26 @@ a {
   background: #070709;
 }
 
+.admin-mobile-container {
+  width: 100%;
+  max-width: 480px; /* Force phone proportions for the admin dashboard */
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: #070709;
+}
+
+@media (min-width: 481px) {
+  .admin-mobile-container {
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.85), 0 0 1px rgba(228, 166, 47, 0.25);
+    border-left: 1px solid rgba(228, 166, 47, 0.08);
+    border-right: 1px solid rgba(228, 166, 47, 0.08);
+  }
+}
+
+
 /* Utility Classes */
 .gold-text {
   background: var(--gold-gradient);
