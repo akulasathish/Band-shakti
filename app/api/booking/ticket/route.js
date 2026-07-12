@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
+import fs from 'fs';
+import path from 'path';
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -40,33 +42,36 @@ export async function GET(request) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helveticaRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // Draw header banner solid gold block
-    page.drawRectangle({
-      x: 30,
-      y: 570,
-      width: 340,
-      height: 44,
-      color: rgb(0.894, 0.651, 0.184),
-    });
+    // 2. Load and embed the official logo.png from the public directory
+    const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+    let logoImage = null;
+    try {
+      const logoBytes = fs.readFileSync(logoPath);
+      logoImage = await pdfDoc.embedPng(logoBytes);
+    } catch (err) {
+      console.error("Failed to load logo image file:", err);
+    }
 
-    // Draw Header text in black inside gold banner
-    page.drawText('BAND SHAKTHI', {
-      x: 95,
-      y: 584,
-      size: 20,
-      font: helveticaBold,
-      color: rgb(0.027, 0.027, 0.035),
-    });
+    // Draw the Logo centered in the header area (Page width is 400, Logo width is 160)
+    if (logoImage) {
+      page.drawImage(logoImage, {
+        x: 120,
+        y: 565,
+        width: 160,
+        height: 52,
+      });
+    } else {
+      // Fallback text if logo.png is missing
+      page.drawText('BAND SHAKTHI', {
+        x: 110,
+        y: 580,
+        size: 20,
+        font: helveticaBold,
+        color: rgb(0.894, 0.651, 0.184),
+      });
+    }
 
-    // Draw logo accent red dot
-    page.drawCircle({
-      x: 295,
-      y: 593,
-      radius: 4,
-      color: rgb(1, 0.2, 0.2),
-    });
-
-    // Pass Type Title centered below header block
+    // Pass Type Title centered below the logo
     page.drawText('ENTRY PASS', {
       x: 145,
       y: 535,
@@ -120,7 +125,6 @@ export async function GET(request) {
     });
 
     // ── SECURE QR CODE GENERATION ──
-    // Points directly to the admin gate verification portal
     const verificationUrl = `http://127.0.0.1:3000/admin?verify=${ticketId}`;
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, { 
       width: 300, 
