@@ -30,18 +30,37 @@ export default function Hero() {
         const { data, error } = await supabase
           .from('gallery_assets')
           .select('*')
-          .in('type', ['HERO_BANNER_1', 'HERO_BANNER_2']);
+          .eq('type', 'HERO_BANNER')
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
 
         if (data && data.length > 0) {
-          const updatedSlides = [...DEFAULT_SLIDES];
-          data.forEach(item => {
-            if (item.type === 'HERO_BANNER_1') {
-              updatedSlides[0].image = item.url;
-            } else if (item.type === 'HERO_BANNER_2') {
-              updatedSlides[1].image = item.url;
-            }
+          const loadedSlides = data.map((item, idx) => {
+            let title = idx === 0 ? 'WELCOME TO BAND SHAKTHI' : 'FEEL THE ELECTRIC VIBE';
+            let subtitle = idx === 0 ? 'THE ULTIMATE LIVE EXPERIENCE' : 'JAM ARENA 2026';
+            let desc = idx === 0 
+              ? 'HIGH-ENERGY POP & ROCK GIGS IN PUBS, FESTIVALS, AND EVENTS' 
+              : 'WITNESS CAPTIVATING MUSICAL RUNS & CROWD-PULSING RHYTHMS';
+            
+            try {
+              if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
+                const meta = JSON.parse(item.description);
+                if (meta.title) title = meta.title;
+                if (meta.subtitle) subtitle = meta.subtitle;
+                if (meta.desc) desc = meta.desc;
+              }
+            } catch (e) {}
+            return {
+              image: item.url,
+              title,
+              subtitle,
+              desc,
+              type: 'HERO_BANNER',
+              id: item.id
+            };
           });
-          setSlides(updatedSlides);
+          setSlides(loadedSlides);
         }
       } catch (err) {
         console.error("Failed to load banners:", err);

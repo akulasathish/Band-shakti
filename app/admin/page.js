@@ -27,19 +27,11 @@ export default function AdminPage() {
   const [activeEvent, setActiveEvent] = useState({ id: null, title: 'No Active Event' });
   const [activationResult, setActivationResult] = useState(null);
 
-  // Custom Band Members details (Synced from DB)
-  const [memberNames, setMemberNames] = useState({
-    MEMBER_1: 'Vikram Shakthi',
-    MEMBER_2: 'Arjun Iyer',
-    MEMBER_3: 'Neha Sen',
-    MEMBER_4: 'Karan Mehta'
-  });
-  const [memberRoles, setMemberRoles] = useState({
-    MEMBER_1: 'Lead Vocals / Frontman',
-    MEMBER_2: 'Lead Guitarist',
-    MEMBER_3: 'Bass / Backing Vocals',
-    MEMBER_4: 'Drums / Percussions'
-  });
+  // Dynamic Banners list loaded from DB
+  const [banners, setBanners] = useState([]);
+  
+  // Dynamic Band Members list loaded from DB
+  const [bandMembers, setBandMembers] = useState([]);
 
   // CSV Import States
   const [csvFile, setCsvFile] = useState(null);
@@ -103,16 +95,64 @@ export default function AdminPage() {
     }
   };
 
-  // 3. Fetch live uploaded gallery assets
+  // 3. Fetch live uploaded gallery assets & sort dynamic sections
   const fetchGalleryImages = async () => {
     try {
       const { data, error } = await supabase
         .from('gallery_assets')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
-      if (data) setGalleryImages(data);
+      if (data) {
+        setGalleryImages(data);
+
+        // Filter and map dynamic banners
+        const bannerAssets = data.filter(img => img.type === 'HERO_BANNER');
+        setBanners(bannerAssets.map((item, idx) => {
+          let title = idx === 0 ? 'WELCOME TO BAND SHAKTHI' : 'FEEL THE ELECTRIC VIBE';
+          let subtitle = idx === 0 ? 'THE ULTIMATE LIVE EXPERIENCE' : 'JAM ARENA 2026';
+          let desc = idx === 0 
+            ? 'HIGH-ENERGY POP & ROCK GIGS IN PUBS, FESTIVALS, AND EVENTS' 
+            : 'WITNESS CAPTIVATING MUSICAL RUNS & CROWD-PULSING RHYTHMS';
+          
+          try {
+            if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
+              const meta = JSON.parse(item.description);
+              if (meta.title) title = meta.title;
+              if (meta.subtitle) subtitle = meta.subtitle;
+              if (meta.desc) desc = meta.desc;
+            }
+          } catch (e) {}
+          return {
+            id: item.id,
+            url: item.url,
+            title,
+            subtitle,
+            desc
+          };
+        }));
+
+        // Filter and map dynamic band members
+        const memberAssets = data.filter(img => img.type === 'BAND_MEMBER');
+        setBandMembers(memberAssets.map((item, idx) => {
+          let name = 'Band Member';
+          let role = 'Musician';
+          try {
+            if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
+              const meta = JSON.parse(item.description);
+              if (meta.name) name = meta.name;
+              if (meta.role) role = meta.role;
+            }
+          } catch (e) {}
+          return {
+            id: item.id,
+            url: item.url,
+            name,
+            role
+          };
+        }));
+      }
     } catch (err) {
       console.error("Error fetching gallery images:", err);
     }
@@ -158,48 +198,265 @@ export default function AdminPage() {
     }
   }, [isAuthenticated, activeTab]);
 
-  // Decode customized member descriptions on image updates
-  useEffect(() => {
-    if (galleryImages.length > 0) {
-      const names = {
-        MEMBER_1: 'Vikram Shakthi',
-        MEMBER_2: 'Arjun Iyer',
-        MEMBER_3: 'Neha Sen',
-        MEMBER_4: 'Karan Mehta'
-      };
-      const roles = {
-        MEMBER_1: 'Lead Vocals / Frontman',
-        MEMBER_2: 'Lead Guitarist',
-        MEMBER_3: 'Bass / Backing Vocals',
-        MEMBER_4: 'Drums / Percussions'
-      };
-      galleryImages.forEach(img => {
-        if (['MEMBER_1', 'MEMBER_2', 'MEMBER_3', 'MEMBER_4'].includes(img.type)) {
-          try {
-            if (img.description && (img.description.startsWith('{') || img.description.startsWith('['))) {
-              const meta = JSON.parse(img.description);
-              if (meta.name) names[img.type] = meta.name;
-              if (meta.role) roles[img.type] = meta.role;
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      });
-      setMemberNames(names);
-      setMemberRoles(roles);
-    }
-  }, [galleryImages]);
-
-  // Helper to fetch current active asset URL
-  const getAssetUrl = (typeCode, defaultUrl) => {
-    const asset = galleryImages.find(img => img.type === typeCode);
-    return asset ? asset.url : defaultUrl;
-  };
-
   const galleryOnlyImages = galleryImages.filter(img => img.type === 'IMAGE');
 
-  // Live Image Upload to Storage & DB
+  // --- LOCAL INPUT TEXT MODIFIERS ---
+  const handleBannerTextChange = (id, field, value) => {
+    setBanners(banners.map(b => b.id === id ? { ...b, [field]: value } : b));
+  };
+
+  const handleMemberTextChange = (id, field, value) => {
+    setBandMembers(bandMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+
+  // --- DYNAMIC SLIDES CONTROL MUTATIONS ---
+  const handleAddBanner = async () => {
+    setIsUploading(true);
+    try {
+      const defaultImageUrl = 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1000';
+      const descriptionJson = JSON.stringify({
+        title: 'FEEL THE ELECTRIC VIBE',
+        subtitle: 'NEW BAND SHOW TIMELINE',
+        desc: 'GET READY TO SHRED THE DANCE FLOOR WITH BAND SHAKTHI'
+      });
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .insert({
+          type: 'HERO_BANNER',
+          url: defaultImageUrl,
+          description: descriptionJson
+        });
+
+      if (error) throw error;
+      alert('New background slide added! You can now edit its text details or upload a new photo.');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to add banner:", err);
+      alert("Failed to add slide: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveBannerDetails = async (id, title, subtitle, desc) => {
+    setIsUploading(true);
+    try {
+      const descriptionJson = JSON.stringify({ title, subtitle, desc });
+      const { error } = await supabase
+        .from('gallery_assets')
+        .update({ description: descriptionJson })
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Slide text details updated successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to save banner details:", err);
+      alert("Save failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteBanner = async (id, url) => {
+    if (!confirm('Are you sure you want to delete this background slide?')) return;
+    setIsUploading(true);
+    try {
+      if (url.includes('/storage/v1/object/public/gallery/')) {
+        const fileName = url.split('/').pop();
+        await supabase.storage.from('gallery').remove([fileName]);
+      }
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Slide deleted successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to delete banner:", err);
+      alert("Delete failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadBannerImage = async (e, id) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `banner_${id.substring(0, 8)}_${Math.random().toString(36).substring(2, 6)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('gallery')
+        .getPublicUrl(filePath);
+
+      const { data: oldAsset } = await supabase
+        .from('gallery_assets')
+        .select('url')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (oldAsset && oldAsset.url.includes('/storage/v1/object/public/gallery/')) {
+        const oldFileName = oldAsset.url.split('/').pop();
+        await supabase.storage.from('gallery').remove([oldFileName]);
+      }
+
+      const { error: dbError } = await supabase
+        .from('gallery_assets')
+        .update({ url: urlData.publicUrl })
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      alert('Slide background picture updated successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Banner upload failed:", err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // --- DYNAMIC BAND MEMBERS CONTROL MUTATIONS ---
+  const handleAddMember = async () => {
+    setIsUploading(true);
+    try {
+      const defaultImageUrl = 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400';
+      const descriptionJson = JSON.stringify({
+        name: 'New Musician',
+        role: 'Instrumentalist'
+      });
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .insert({
+          type: 'BAND_MEMBER',
+          url: defaultImageUrl,
+          description: descriptionJson
+        });
+
+      if (error) throw error;
+      alert('New band member added! You can now customize their name, role, and portrait.');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to add member:", err);
+      alert("Failed to add member: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveMemberText = async (id, name, role) => {
+    setIsUploading(true);
+    try {
+      const descriptionJson = JSON.stringify({ name, role });
+      const { error } = await supabase
+        .from('gallery_assets')
+        .update({ description: descriptionJson })
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Member details updated successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to save member details:", err);
+      alert("Save failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteMember = async (id, url) => {
+    if (!confirm('Are you sure you want to delete this band member profile?')) return;
+    setIsUploading(true);
+    try {
+      if (url.includes('/storage/v1/object/public/gallery/')) {
+        const fileName = url.split('/').pop();
+        await supabase.storage.from('gallery').remove([fileName]);
+      }
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      alert('Member profile deleted successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to delete member:", err);
+      alert("Delete failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadMemberImage = async (e, id) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `member_${id.substring(0, 8)}_${Math.random().toString(36).substring(2, 6)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('gallery')
+        .getPublicUrl(filePath);
+
+      const { data: oldAsset } = await supabase
+        .from('gallery_assets')
+        .select('url')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (oldAsset && oldAsset.url.includes('/storage/v1/object/public/gallery/')) {
+        const oldFileName = oldAsset.url.split('/').pop();
+        await supabase.storage.from('gallery').remove([oldFileName]);
+      }
+
+      const { error: dbError } = await supabase
+        .from('gallery_assets')
+        .update({ url: urlData.publicUrl })
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      alert('Member portrait updated successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Member upload failed:", err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // --- MULTIPLE IMAGES UPLOAD (CONCERT GALLERY) ---
   const handleMultipleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -243,200 +500,6 @@ export default function AdminPage() {
       e.target.value = '';
     }
   };
-
-  // Live Single Image Upload
-  const handleSingleImageUpload = async (e, typeCode) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setIsUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${typeCode.toLowerCase()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('gallery')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('gallery')
-        .getPublicUrl(filePath);
-
-      const { data: oldAsset } = await supabase
-        .from('gallery_assets')
-        .select('id, url, description')
-        .eq('type', typeCode)
-        .maybeSingle();
-
-      if (oldAsset) {
-        // Keep the old description metadata if editing the picture
-        const oldFileName = oldAsset.url.split('/').pop();
-        await supabase.storage.from('gallery').remove([oldFileName]);
-        await supabase.from('gallery_assets').delete().eq('type', typeCode);
-
-        const { error: dbError } = await supabase
-          .from('gallery_assets')
-          .insert({
-            type: typeCode,
-            url: urlData.publicUrl,
-            description: oldAsset.description // Preserve text config
-          });
-        if (dbError) throw dbError;
-      } else {
-        // Insert new row with default details
-        const defaultNames = { MEMBER_1: 'Vikram Shakthi', MEMBER_2: 'Arjun Iyer', MEMBER_3: 'Neha Sen', MEMBER_4: 'Karan Mehta' };
-        const defaultRoles = { MEMBER_1: 'Lead Vocals / Frontman', MEMBER_2: 'Lead Guitarist', MEMBER_3: 'Bass / Backing Vocals', MEMBER_4: 'Drums / Percussions' };
-        
-        const descriptionJson = JSON.stringify({ name: defaultNames[typeCode], role: defaultRoles[typeCode] });
-        
-        const { error: dbError } = await supabase
-          .from('gallery_assets')
-          .insert({
-            type: typeCode,
-            url: urlData.publicUrl,
-            description: descriptionJson
-          });
-        if (dbError) throw dbError;
-      }
-
-      alert(`${typeCode.replace(/_/g, ' ')} picture updated successfully!`);
-      fetchGalleryImages();
-    } catch (err) {
-      console.error("Single asset upload failed:", err);
-      alert('Upload failed: ' + err.message);
-    } finally {
-      setIsUploading(false);
-      e.target.value = '';
-    }
-  };
-
-  // Save customized Band member Name and Role
-  const handleSaveMemberDetails = async (typeCode, nameVal, roleVal) => {
-    setIsUploading(true);
-    try {
-      const { data: existing } = await supabase
-        .from('gallery_assets')
-        .select('id, url')
-        .eq('type', typeCode)
-        .maybeSingle();
-
-      const descriptionJson = JSON.stringify({ name: nameVal, role: roleVal });
-
-      if (existing) {
-        const { error } = await supabase
-          .from('gallery_assets')
-          .update({ description: descriptionJson })
-          .eq('type', typeCode);
-        if (error) throw error;
-      } else {
-        // Insert with unsplash default photo if photo hasn't been uploaded yet
-        const defaultPhotos = {
-          MEMBER_1: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400',
-          MEMBER_2: 'https://images.unsplash.com/photo-1525201548982-be346cae56a7?q=80&w=400',
-          MEMBER_3: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400',
-          MEMBER_4: 'https://images.unsplash.com/photo-1519750157634-b6d493a0f77c?q=80&w=400'
-        };
-
-        const { error } = await supabase
-          .from('gallery_assets')
-          .insert({
-            type: typeCode,
-            url: defaultPhotos[typeCode],
-            description: descriptionJson
-          });
-        if (error) throw error;
-      }
-
-      alert('Band member name and role updated successfully!');
-      fetchGalleryImages();
-    } catch (err) {
-      console.error("Save details failed:", err);
-      alert('Save failed: ' + err.message);
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // Live Image Deletion
-  const handleDeleteImage = async (id, url) => {
-    if (!confirm('Are you sure you want to delete this image?')) return;
-
-    try {
-      const fileName = url.split('/').pop();
-
-      const { error: storageError } = await supabase.storage
-        .from('gallery')
-        .remove([fileName]);
-
-      if (storageError) throw storageError;
-
-      const { error: dbError } = await supabase
-        .from('gallery_assets')
-        .delete()
-        .eq('id', id);
-
-      if (dbError) throw dbError;
-
-      alert('Image deleted successfully!');
-      fetchGalleryImages();
-    } catch (err) {
-      console.error("Deletion failed:", err);
-      alert('Delete failed: ' + err.message);
-    }
-  };
-
-  // QR Scanner Lifecycle Management
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    
-    const startScanner = async () => {
-      setScanResult(null);
-      setScanError(null);
-      
-      const elementId = activeTab === 'scan' ? 'gate-scanner-reader' : 'sell-scanner-reader';
-      const container = document.getElementById(elementId);
-      
-      if (!container) return;
-
-      try {
-        const html5QrCode = new Html5Qrcode(elementId);
-        html5QrCodeRef.current = html5QrCode;
-        setIsScanning(true);
-
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          (decodedText) => {
-            handleScanSuccess(decodedText);
-          },
-          (errorMessage) => {
-            // silent frame read log
-          }
-        );
-      } catch (err) {
-        console.error("Camera access failed:", err);
-        setScanError("Failed to access camera. Ensure permissions are granted.");
-        setIsScanning(false);
-      }
-    };
-
-    if (activeTab === 'scan' || activeTab === 'sell') {
-      startScanner();
-    }
-
-    return () => {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().then(() => {
-          setIsScanning(false);
-        }).catch(err => console.error("Error stopping scanner:", err));
-      }
-    };
-  }, [activeTab, isAuthenticated]);
 
   // Real Gate check-in verification logic
   const handleScanSuccess = async (decodedText) => {
@@ -1095,7 +1158,7 @@ export default function AdminPage() {
         {activeTab === 'media' && (
           <div className="tab-content">
             <h2 className="tab-title">Media & Content Manager</h2>
-            <p className="tab-desc">Modify landing page images, names, and roles dynamically.</p>
+            <p className="tab-desc">Modify landing page images, slides, names, and roles dynamically.</p>
 
             {isUploading && (
               <div className="uploading-indicator-bar">
@@ -1106,253 +1169,182 @@ export default function AdminPage() {
 
             <div className="media-forms">
               
-              {/* Section 1: Hero Banner Banners */}
+              {/* Dynamic Banners Section */}
               <div className="glass-card media-editor-section">
-                <h4>1. Top Header Slider Banners</h4>
-                <p className="section-desc-small">Replace the main background slides on your homepage.</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0 }}>1. Top Header Slider Banners</h4>
+                  <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddBanner}>
+                    + Add Slide
+                  </button>
+                </div>
+                <p className="section-desc-small">Add, delete, or modify slides in the homepage background carousel.</p>
                 
-                <div className="admin-banner-row">
-                  <div className="banner-preview-box">
-                    <div 
-                      className="banner-preview-thumb" 
-                      style={{ backgroundImage: `url(${getAssetUrl('HERO_BANNER_1', 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600')})` }}
-                    ></div>
-                    <div className="banner-upload-controls">
-                      <span>Slide 1 Background</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={(e) => handleSingleImageUpload(e, 'HERO_BANNER_1')}
-                        disabled={isUploading}
-                      />
-                    </div>
-                  </div>
+                <div className="admin-banner-row" style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  {banners.length === 0 ? (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center' }}>
+                      No custom slides in database. Homepage is currently using the 2 default slides. Click "+ Add Slide" to start customizing!
+                    </p>
+                  ) : (
+                    banners.map((slide, idx) => (
+                      <div key={slide.id} className="banner-preview-box" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px', padding: '12px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(228, 166, 47, 0.05)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                          <div 
+                            className="banner-preview-thumb" 
+                            style={{ backgroundImage: `url(${slide.url})`, width: '80px', height: '50px', borderRadius: '4px', backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0 }}
+                          ></div>
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: '#fff' }}>Background Slide #{idx + 1}</span>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <label className="btn-gold" style={{ fontSize: '0.6rem', padding: '4px 8px', margin: 0, cursor: 'pointer', borderRadius: '4px' }}>
+                                Change Pic
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  style={{ display: 'none' }}
+                                  onChange={(e) => handleUploadBannerImage(e, slide.id)}
+                                  disabled={isUploading}
+                                />
+                              </label>
+                              <button 
+                                type="button" 
+                                className="btn-outline" 
+                                style={{ fontSize: '0.6rem', padding: '4px 8px', borderColor: '#ff5252', color: '#ff5252', borderRadius: '4px' }}
+                                onClick={() => handleDeleteBanner(slide.id, slide.url)}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
 
-                  <div className="banner-preview-box">
-                    <div 
-                      className="banner-preview-thumb" 
-                      style={{ backgroundImage: `url(${getAssetUrl('HERO_BANNER_2', 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600')})` }}
-                    ></div>
-                    <div className="banner-upload-controls">
-                      <span>Slide 2 Background</span>
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        onChange={(e) => handleSingleImageUpload(e, 'HERO_BANNER_2')}
-                        disabled={isUploading}
-                      />
-                    </div>
-                  </div>
+                        <div className="input-group-mini">
+                          <label>Title</label>
+                          <input 
+                            type="text" 
+                            className="mini-text-input"
+                            value={slide.title}
+                            onChange={(e) => handleBannerTextChange(slide.id, 'title', e.target.value)}
+                          />
+                        </div>
+
+                        <div className="input-group-mini">
+                          <label>Subtitle</label>
+                          <input 
+                            type="text" 
+                            className="mini-text-input"
+                            value={slide.subtitle}
+                            onChange={(e) => handleBannerTextChange(slide.id, 'subtitle', e.target.value)}
+                          />
+                        </div>
+
+                        <div className="input-group-mini">
+                          <label>Description</label>
+                          <input 
+                            type="text" 
+                            className="mini-text-input"
+                            value={slide.desc}
+                            onChange={(e) => handleBannerTextChange(slide.id, 'desc', e.target.value)}
+                          />
+                        </div>
+
+                        <button 
+                          type="button" 
+                          className="btn-gold" 
+                          style={{ fontSize: '0.7rem', padding: '6px 12px', width: '100%', marginTop: '4px', borderRadius: '6px' }}
+                          onClick={() => handleSaveBannerDetails(slide.id, slide.title, slide.subtitle, slide.desc)}
+                        >
+                          Save Text Details
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Section 2: Band Member Portraits & Text Settings */}
+              {/* Dynamic Band Members Section */}
               <div className="glass-card media-editor-section">
-                <h4>2. Band Member Profiles</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <h4 style={{ margin: 0 }}>2. Band Member Profiles</h4>
+                  <button type="button" className="btn-gold" style={{ fontSize: '0.7rem', padding: '5px 10px', borderRadius: '6px' }} onClick={handleAddMember}>
+                    + Add Member
+                  </button>
+                </div>
                 <p className="section-desc-small">Change photos, display names, and roles on the homepage.</p>
 
-                <div className="admin-members-grid">
-                  
-                  {/* Member 1 Vocalist */}
-                  <div className="admin-member-upload-card">
-                    <div 
-                      className="admin-member-thumb"
-                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_1', 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400')})` }}
-                    ></div>
-                    <div className="admin-member-details">
-                      <div className="input-group-mini">
-                        <label>Display Name</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberNames.MEMBER_1}
-                          onChange={(e) => setMemberNames({ ...memberNames, MEMBER_1: e.target.value })}
-                        />
+                <div className="admin-members-grid" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {bandMembers.length === 0 ? (
+                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontStyle: 'italic', padding: '10px 0', textAlign: 'center', width: '100%' }}>
+                      No custom members in database. Homepage is currently using the 4 default profiles. Click "+ Add Member" to start customizing!
+                    </p>
+                  ) : (
+                    bandMembers.map((member, idx) => (
+                      <div key={member.id} className="admin-member-upload-card" style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(228, 166, 47, 0.05)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', width: '70px', flexShrink: 0 }}>
+                          <div 
+                            className="admin-member-thumb"
+                            style={{ backgroundImage: `url(${member.url})`, width: '65px', height: '65px', borderRadius: '50%', backgroundSize: 'cover', backgroundPosition: 'center' }}
+                          ></div>
+                          <span style={{ fontSize: '0.6rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>Member #{idx + 1}</span>
+                        </div>
+                        
+                        <div className="admin-member-details" style={{ flex: 1 }}>
+                          <div className="input-group-mini">
+                            <label>Display Name</label>
+                            <input 
+                              type="text" 
+                              className="mini-text-input"
+                              value={member.name}
+                              onChange={(e) => handleMemberTextChange(member.id, 'name', e.target.value)}
+                            />
+                          </div>
+                          
+                          <div className="input-group-mini" style={{ marginTop: '6px' }}>
+                            <label>Band Role</label>
+                            <input 
+                              type="text" 
+                              className="mini-text-input"
+                              value={member.role}
+                              onChange={(e) => handleMemberTextChange(member.id, 'role', e.target.value)}
+                            />
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                            <button 
+                              type="button" 
+                              className="btn-outline btn-mini-act" 
+                              onClick={() => handleSaveMemberText(member.id, member.name, member.role)}
+                              disabled={isUploading}
+                            >
+                              Save Text
+                            </button>
+                            <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
+                              Upload Pic
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                style={{ display: 'none' }}
+                                onChange={(e) => handleUploadMemberImage(e, member.id)}
+                                disabled={isUploading}
+                              />
+                            </label>
+                            <button 
+                              type="button" 
+                              className="btn-outline btn-mini-act" 
+                              style={{ borderColor: '#ff5252', color: '#ff5252' }}
+                              onClick={() => handleDeleteMember(member.id, member.url)}
+                              disabled={isUploading}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="input-group-mini" style={{ marginTop: '6px' }}>
-                        <label>Band Role</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberRoles.MEMBER_1}
-                          onChange={(e) => setMemberRoles({ ...memberRoles, MEMBER_1: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                        <button 
-                          type="button" 
-                          className="btn-outline btn-mini-act" 
-                          onClick={() => handleSaveMemberDetails('MEMBER_1', memberNames.MEMBER_1, memberRoles.MEMBER_1)}
-                          disabled={isUploading}
-                        >
-                          Save Text
-                        </button>
-                        <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
-                          Upload Pic
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleSingleImageUpload(e, 'MEMBER_1')}
-                            disabled={isUploading}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Member 2 Guitarist */}
-                  <div className="admin-member-upload-card">
-                    <div 
-                      className="admin-member-thumb"
-                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_2', 'https://images.unsplash.com/photo-1525201548982-be346cae56a7?q=80&w=400')})` }}
-                    ></div>
-                    <div className="admin-member-details">
-                      <div className="input-group-mini">
-                        <label>Display Name</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberNames.MEMBER_2}
-                          onChange={(e) => setMemberNames({ ...memberNames, MEMBER_2: e.target.value })}
-                        />
-                      </div>
-                      <div className="input-group-mini" style={{ marginTop: '6px' }}>
-                        <label>Band Role</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberRoles.MEMBER_2}
-                          onChange={(e) => setMemberRoles({ ...memberRoles, MEMBER_2: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                        <button 
-                          type="button" 
-                          className="btn-outline btn-mini-act" 
-                          onClick={() => handleSaveMemberDetails('MEMBER_2', memberNames.MEMBER_2, memberRoles.MEMBER_2)}
-                          disabled={isUploading}
-                        >
-                          Save Text
-                        </button>
-                        <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
-                          Upload Pic
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleSingleImageUpload(e, 'MEMBER_2')}
-                            disabled={isUploading}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Member 3 Bassist */}
-                  <div className="admin-member-upload-card">
-                    <div 
-                      className="admin-member-thumb"
-                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_3', 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400')})` }}
-                    ></div>
-                    <div className="admin-member-details">
-                      <div className="input-group-mini">
-                        <label>Display Name</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberNames.MEMBER_3}
-                          onChange={(e) => setMemberNames({ ...memberNames, MEMBER_3: e.target.value })}
-                        />
-                      </div>
-                      <div className="input-group-mini" style={{ marginTop: '6px' }}>
-                        <label>Band Role</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberRoles.MEMBER_3}
-                          onChange={(e) => setMemberRoles({ ...memberRoles, MEMBER_3: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                        <button 
-                          type="button" 
-                          className="btn-outline btn-mini-act" 
-                          onClick={() => handleSaveMemberDetails('MEMBER_3', memberNames.MEMBER_3, memberRoles.MEMBER_3)}
-                          disabled={isUploading}
-                        >
-                          Save Text
-                        </button>
-                        <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
-                          Upload Pic
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleSingleImageUpload(e, 'MEMBER_3')}
-                            disabled={isUploading}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Member 4 Drummer */}
-                  <div className="admin-member-upload-card">
-                    <div 
-                      className="admin-member-thumb"
-                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_4', 'https://images.unsplash.com/photo-1519750157634-b6d493a0f77c?q=80&w=400')})` }}
-                    ></div>
-                    <div className="admin-member-details">
-                      <div className="input-group-mini">
-                        <label>Display Name</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberNames.MEMBER_4}
-                          onChange={(e) => setMemberNames({ ...memberNames, MEMBER_4: e.target.value })}
-                        />
-                      </div>
-                      <div className="input-group-mini" style={{ marginTop: '6px' }}>
-                        <label>Band Role</label>
-                        <input 
-                          type="text" 
-                          className="mini-text-input"
-                          value={memberRoles.MEMBER_4}
-                          onChange={(e) => setMemberRoles({ ...memberRoles, MEMBER_4: e.target.value })}
-                        />
-                      </div>
-                      
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
-                        <button 
-                          type="button" 
-                          className="btn-outline btn-mini-act" 
-                          onClick={() => handleSaveMemberDetails('MEMBER_4', memberNames.MEMBER_4, memberRoles.MEMBER_4)}
-                          disabled={isUploading}
-                        >
-                          Save Text
-                        </button>
-                        <label className="btn-gold btn-mini-act" style={{ margin: 0, cursor: 'pointer', textAlign: 'center' }}>
-                          Upload Pic
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            style={{ display: 'none' }}
-                            onChange={(e) => handleSingleImageUpload(e, 'MEMBER_4')}
-                            disabled={isUploading}
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Section 3: Concert Photo Gallery */}
+              {/* Section 3: Concert Photo Gallery (Already Fully Dynamic) */}
               <div className="glass-card media-editor-section">
                 <h4>3. Concert Photo Gallery</h4>
                 <p className="section-desc-small">Add new show photos to the main landing page masonry grid.</p>

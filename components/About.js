@@ -43,32 +43,39 @@ export default function About() {
         const { data, error } = await supabase
           .from('gallery_assets')
           .select('*')
-          .in('type', ['MEMBER_1', 'MEMBER_2', 'MEMBER_3', 'MEMBER_4']);
+          .eq('type', 'BAND_MEMBER')
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
 
         if (data && data.length > 0) {
-          // Deep copy default members
-          const updatedMembers = DEFAULT_MEMBERS.map(m => ({ ...m }));
-          data.forEach(item => {
-            const idx = updatedMembers.findIndex(m => m.type === item.type);
-            if (idx !== -1) {
-              updatedMembers[idx].image = item.url;
-              
-              // Attempt to parse customized Name and Role
-              try {
-                if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
-                  const meta = JSON.parse(item.description);
-                  if (meta.name) updatedMembers[idx].name = meta.name;
-                  if (meta.role) updatedMembers[idx].role = meta.role;
-                }
-              } catch (e) {
-                // fall back to default text
+          const loadedMembers = data.map((item) => {
+            let name = 'Band Member';
+            let role = 'Musician';
+            let bio = 'Dedicated member of Band Shakthi.';
+            
+            try {
+              if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
+                const meta = JSON.parse(item.description);
+                if (meta.name) name = meta.name;
+                if (meta.role) role = meta.role;
               }
-            }
+            } catch (e) {}
+            return {
+              name,
+              role,
+              image: item.url,
+              bio,
+              type: 'BAND_MEMBER',
+              id: item.id
+            };
           });
-          setMembers(updatedMembers);
+          setMembers(loadedMembers);
+        } else {
+          setMembers(DEFAULT_MEMBERS);
         }
       } catch (err) {
-        console.error("Failed to load member profile photos:", err);
+        console.error("Failed to load member profile details:", err);
       }
     };
     fetchMemberImages();
