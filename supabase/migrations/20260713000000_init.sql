@@ -57,9 +57,9 @@ CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_payment_request ON tickets(payment_request_id);
 
 -- Seed initial admin login account
+DELETE FROM admin_users;
 INSERT INTO admin_users (email, password)
-VALUES ('admin@bandshakti.com', 'shaktiadmin')
-ON CONFLICT (email) DO NOTHING;
+VALUES ('admin@bandshakti.com', '8686113435');
 
 -- Seed an upcoming mock event so checkout functions immediately
 INSERT INTO events (title, description, event_date, venue, ticket_price, total_capacity, tickets_sold, is_active)

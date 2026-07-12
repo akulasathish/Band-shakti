@@ -59,7 +59,7 @@ export default function AdminPage() {
       if (data) {
         setIsAuthenticated(true);
       } else {
-        alert('Invalid admin credentials. Use admin@bandshakti.com / shaktiadmin');
+        alert('Invalid admin credentials. Use admin@bandshakti.com / 8686113435');
       }
     } catch (err) {
       console.error("Login verification failed:", err);
@@ -332,7 +332,7 @@ export default function AdminPage() {
           </form>
         </div>
 
-        <p className="login-note">Credentials for UI Review:<br /><b>admin@bandshakti.com</b> / <b>shaktiadmin</b></p>
+        <p className="login-note">Credentials for UI Review:<br /><b>admin@bandshakti.com</b> / <b>8686113435</b></p>
         
         <style jsx global>{`
           .login-page {
