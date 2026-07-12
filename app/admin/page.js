@@ -104,7 +104,7 @@ export default function AdminPage() {
     }
   };
 
-  // 4. Fetch live statistics from database tickets table (aggregating total guest pax count)
+  // 4. Fetch live statistics from database tickets table
   const fetchStats = async () => {
     try {
       const { data, error } = await supabase
@@ -120,7 +120,6 @@ export default function AdminPage() {
         const totalPaxSold = paidTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
         const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
         const revenueAmount = paidTickets.reduce((sum, t) => {
-          // If offline ticket, calculate by pax * 500, or simple total
           return sum + ((t.pax || 1) * 500);
         }, 0);
         
@@ -330,7 +329,7 @@ export default function AdminPage() {
     };
   }, [activeTab, isAuthenticated]);
 
-  // Real Gate check-in verification logic (with inner join to fetch event details)
+  // Real Gate check-in verification logic
   const handleScanSuccess = async (decodedText) => {
     if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
       try {
@@ -349,7 +348,7 @@ export default function AdminPage() {
           ticketId = urlObj.searchParams.get('verify');
         }
 
-        // Joint query to retrieve buyer details, event name, and pax count!
+        // Joint query to retrieve buyer details, event name, and pax count
         const { data: ticket, error } = await supabase
           .from('tickets')
           .select('*, events(title)')
@@ -434,7 +433,6 @@ export default function AdminPage() {
     try {
       const ticketId = scanResult.qrId;
 
-      // Insert row into tickets table using the pre-printed sticker UUID as the primary key id
       const { error: dbError } = await supabase
         .from('tickets')
         .insert({
@@ -444,7 +442,7 @@ export default function AdminPage() {
           buyer_email: guestPhone ? `${guestPhone}@counter.com` : 'counter@guest.com',
           buyer_phone: guestPhone || '00000 00000',
           ticket_type: 'OFFLINE_GUEST',
-          pax: guestPax, // Saves the cashier-inputted pax count!
+          pax: guestPax,
           status: 'PAID',
           scanned: false
         });
@@ -481,6 +479,18 @@ export default function AdminPage() {
     setImportedLogs([newLog, ...importedLogs]);
     alert(`Success! Imported ${newLog.count} bookings from ${csvFile.name}. Verification emails containing QR codes are now being dispatched.`);
     setCsvFile(null);
+  };
+
+  // Helper trigger to manually simulate scanning during desktop testing
+  const handleSimulateScanInput = (inputId, resetCallback) => {
+    const inputEl = document.getElementById(inputId);
+    const value = inputEl ? inputEl.value.trim() : '';
+    if (!value) {
+      alert("Please enter a valid ticket ID or URL to simulate!");
+      return;
+    }
+    handleScanSuccess(value);
+    if (inputEl) inputEl.value = '';
   };
 
   // --- LOGIN SCREEN ---
@@ -672,7 +682,40 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Scanner Results Overlay showing guest name, event name, and pax count! */}
+            {/* Local Simulator Box (QA desktop testing helper) */}
+            {!scanResult && (
+              <div className="glass-card" style={{ marginTop: '16px', padding: '12px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                  💻 Local Desktop QA Simulator:
+                </span>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <input 
+                    type="text" 
+                    id="manual-gate-uuid" 
+                    placeholder="Paste Ticket ID (UUID)" 
+                    style={{ 
+                      flex: 1, 
+                      background: '#070709', 
+                      border: '1px solid rgba(228, 166, 47, 0.2)', 
+                      color: '#fff', 
+                      borderRadius: '6px', 
+                      fontSize: '0.8rem', 
+                      padding: '6px 10px' 
+                    }}
+                  />
+                  <button 
+                    type="button" 
+                    className="btn-outline" 
+                    style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                    onClick={() => handleSimulateScanInput('manual-gate-uuid')}
+                  >
+                    Verify Pass
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Scanner Results Overlay */}
             {scanResult && (
               <div className={`scan-result-card ${scanResult.status === 'GRANTED' ? 'result-success' : 'result-fail'}`}>
                 <h3>{scanResult.status === 'GRANTED' ? '✓ ACCESS GRANTED' : '✗ ACCESS DENIED'}</h3>
@@ -719,6 +762,37 @@ export default function AdminPage() {
                       <p>Starting Camera Feed...</p>
                     </div>
                   )}
+                </div>
+
+                {/* Local Simulator Box (QA desktop testing helper) */}
+                <div className="glass-card" style={{ marginTop: '16px', padding: '12px' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                    💻 Local Desktop QA Simulator:
+                  </span>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <input 
+                      type="text" 
+                      id="manual-sticker-uuid" 
+                      placeholder="Paste Pre-Printed Sticker UUID" 
+                      style={{ 
+                        flex: 1, 
+                        background: '#070709', 
+                        border: '1px solid rgba(228, 166, 47, 0.2)', 
+                        color: '#fff', 
+                        borderRadius: '6px', 
+                        fontSize: '0.8rem', 
+                        padding: '6px 10px' 
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      className="btn-outline" 
+                      style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                      onClick={() => handleSimulateScanInput('manual-sticker-uuid')}
+                    >
+                      Bind Sticker
+                    </button>
+                  </div>
                 </div>
 
                 {/* Sticker Sheet Generator helper */}
