@@ -36,7 +36,7 @@ const DEFAULT_MEMBERS = [
 export default function About() {
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
 
-  // Fetch custom member profile photos from database on load
+  // Fetch custom member details from database on load
   useEffect(() => {
     const fetchMemberImages = async () => {
       try {
@@ -46,11 +46,23 @@ export default function About() {
           .in('type', ['MEMBER_1', 'MEMBER_2', 'MEMBER_3', 'MEMBER_4']);
 
         if (data && data.length > 0) {
-          const updatedMembers = [...DEFAULT_MEMBERS];
+          // Deep copy default members
+          const updatedMembers = DEFAULT_MEMBERS.map(m => ({ ...m }));
           data.forEach(item => {
             const idx = updatedMembers.findIndex(m => m.type === item.type);
             if (idx !== -1) {
               updatedMembers[idx].image = item.url;
+              
+              // Attempt to parse customized Name and Role
+              try {
+                if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
+                  const meta = JSON.parse(item.description);
+                  if (meta.name) updatedMembers[idx].name = meta.name;
+                  if (meta.role) updatedMembers[idx].role = meta.role;
+                }
+              } catch (e) {
+                // fall back to default text
+              }
             }
           });
           setMembers(updatedMembers);
