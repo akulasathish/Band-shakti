@@ -64,6 +64,7 @@ export default function About() {
 
   return (
     <section id="about" className="section-padding about-section">
+      {/* Biography Introduction */}
       <div className="about-wrapper">
         <h2 className="section-title">About the Band</h2>
         <p className="about-text">
@@ -74,23 +75,25 @@ export default function About() {
         </p>
       </div>
 
+      {/* Band Members Grid (Styled exactly like the requested image) */}
       <div id="band" className="members-wrapper">
-        <h2 className="section-title">The Band Members</h2>
+        <div className="title-center-container">
+          <h2 className="members-section-title">Band Members</h2>
+        </div>
         
         <div className="members-grid">
           {members.map((member, idx) => (
             <div key={idx} className="member-card">
+              {/* Photo Box - Sharp corners */}
               <div 
                 className="member-img" 
                 style={{ backgroundImage: `url(${member.image})` }}
-              >
-                <div className="member-gradient-overlay"></div>
-              </div>
+              ></div>
               
+              {/* Solid Coral Red Info Banner at the bottom */}
               <div className="member-info">
-                <p className="member-role">{member.role}</p>
                 <h3 className="member-name">{member.name}</h3>
-                <p className="member-bio">{member.bio}</p>
+                <p className="member-role">{member.role}</p>
               </div>
             </div>
           ))}
@@ -128,95 +131,100 @@ export default function About() {
           margin-top: 24px;
         }
 
-        /* Members Card Grid - Mobile Stack */
+        /* Centered Header with Under-highlight */
+        .title-center-container {
+          text-align: center;
+          margin-bottom: 36px;
+        }
+
+        .members-section-title {
+          font-family: var(--font-family-title);
+          font-size: 1.8rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #ffffff;
+          display: inline-block;
+          position: relative;
+          letter-spacing: 0.08em;
+          z-index: 5;
+        }
+
+        /* Thick coral red highlights line under the text (retro rock vibe) */
+        .members-section-title::after {
+          content: '';
+          position: absolute;
+          left: -8px;
+          bottom: 2px;
+          width: calc(100% + 16px);
+          height: 10px;
+          background-color: #ff5252; /* Coral red */
+          z-index: -1;
+        }
+
+        /* Members Card Grid - Stacks on mobile with vertical spacing */
         .members-grid {
           display: flex;
           flex-direction: column;
-          gap: 24px;
+          gap: 28px;
           margin-top: 16px;
         }
 
+        /* Sharp Corners, flex column layout */
         .member-card {
-          position: relative;
-          height: 280px;
-          border-radius: 16px;
+          display: flex;
+          flex-direction: column;
+          border-radius: 0; /* Sharp 90deg corners */
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: #0d0d12;
           overflow: hidden;
-          border: var(--border-glass);
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
           transition: var(--transition-smooth);
-          cursor: pointer;
         }
 
         .member-card:hover {
-          border-color: var(--color-gold-main);
-          box-shadow: var(--shadow-gold-glow);
+          border-color: #ff5252;
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(255, 82, 82, 0.15);
         }
 
         .member-img {
           width: 100%;
-          height: 100%;
+          aspect-ratio: 1.1; /* Rectangular aspect ratio for photo */
           background-size: cover;
           background-position: center;
-          filter: grayscale(100%);
+          border-radius: 0;
           transition: var(--transition-smooth);
         }
 
         .member-card:hover .member-img {
-          filter: grayscale(20%);
-          transform: scale(1.05);
+          transform: scale(1.03);
         }
 
-        .member-gradient-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(360deg, #070709 10%, rgba(7, 7, 9, 0.4) 50%, rgba(7, 7, 9, 0) 100%);
-          z-index: 1;
-        }
-
+        /* Static Coral-Red Details Banner */
         .member-info {
-          position: absolute;
-          bottom: 0;
-          left: 0;
-          width: 100%;
-          padding: 20px;
+          background-color: #ff5252;
+          padding: 18px 12px;
+          text-align: center;
+          color: #ffffff;
+          border-radius: 0;
           z-index: 2;
-          transform: translateY(35px);
-          transition: var(--transition-smooth);
-        }
-
-        .member-card:hover .member-info {
-          transform: translateY(0);
-        }
-
-        .member-role {
-          font-family: var(--font-family-title);
-          font-size: 0.75rem;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          color: var(--color-gold-main);
-          text-transform: uppercase;
-          margin-bottom: 4px;
         }
 
         .member-name {
-          font-size: 1.3rem;
+          font-family: var(--font-family-title);
+          font-size: 1.2rem;
+          font-weight: 800;
+          text-transform: uppercase;
           color: #ffffff;
-          margin-bottom: 8px;
+          margin-bottom: 4px;
+          letter-spacing: 0.05em;
         }
 
-        .member-bio {
-          font-size: 0.8rem;
-          color: var(--color-text-muted);
-          line-height: 1.4;
-          opacity: 0;
-          transition: var(--transition-smooth);
-        }
-
-        .member-card:hover .member-bio {
-          opacity: 1;
+        .member-role {
+          font-size: 0.85rem;
+          color: rgba(255, 255, 255, 0.95);
+          font-weight: 500;
+          margin: 0;
         }
       `}</style>
     </section>
