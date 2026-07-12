@@ -31,7 +31,7 @@ export default function AdminPage() {
     { date: '2026-07-08', source: 'BookMyShow', count: 18 }
   ]);
 
-  // Gallery Management States (Live)
+  // Gallery & Media Management States (Live)
   const [galleryImages, setGalleryImages] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -67,7 +67,7 @@ export default function AdminPage() {
     }
   };
 
-  // 2. Fetch live uploaded gallery assets
+  // 2. Fetch live uploaded gallery assets (Banners, Members, and Gallery)
   const fetchGalleryImages = async () => {
     try {
       const { data, error } = await supabase
@@ -88,8 +88,17 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 3. Live Image Upload to Supabase Storage & DB
-  const handleImageUpload = async (e) => {
+  // Helper to fetch current active asset URL (with fallback)
+  const getAssetUrl = (typeCode, defaultUrl) => {
+    const asset = galleryImages.find(img => img.type === typeCode);
+    return asset ? asset.url : defaultUrl;
+  };
+
+  // Filter General Gallery images out of banners and member profiles
+  const galleryOnlyImages = galleryImages.filter(img => img.type === 'IMAGE');
+
+  // 3. Live Multiple Image Upload (specifically for Gallery)
+  const handleMultipleImageUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -98,7 +107,7 @@ export default function AdminPage() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+        const fileName = `gallery_${Math.random().toString(36).substring(2, 12)}.${fileExt}`;
         const filePath = `${fileName}`;
 
         // Upload file to bucket 'gallery'
@@ -125,24 +134,82 @@ export default function AdminPage() {
         if (dbError) throw dbError;
       }
 
-      alert('Images uploaded successfully!');
+      alert('Gallery photos uploaded successfully!');
       fetchGalleryImages();
     } catch (err) {
-      console.error("Upload process failed:", err);
+      console.error("Multiple upload failed:", err);
       alert('Upload failed: ' + err.message);
     } finally {
       setIsUploading(false);
-      // Reset input element
       e.target.value = '';
     }
   };
 
-  // 4. Live Image Deletion from DB & Storage
+  // 4. Live Single Image Upload (for Banners and Members)
+  const handleSingleImageUpload = async (e, typeCode) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${typeCode.toLowerCase()}_${Math.random().toString(36).substring(2, 10)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Upload to storage bucket 'gallery'
+      const { error: uploadError } = await supabase.storage
+        .from('gallery')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('gallery')
+        .getPublicUrl(filePath);
+
+      // Check if there is already an existing asset of this type in the database
+      const { data: oldAsset } = await supabase
+        .from('gallery_assets')
+        .select('url')
+        .eq('type', typeCode)
+        .maybeSingle();
+
+      if (oldAsset) {
+        // Delete old physical image from storage
+        const oldFileName = oldAsset.url.split('/').pop();
+        await supabase.storage.from('gallery').remove([oldFileName]);
+        // Delete old row from database
+        await supabase.from('gallery_assets').delete().eq('type', typeCode);
+      }
+
+      // Insert new database record
+      const { error: dbError } = await supabase
+        .from('gallery_assets')
+        .insert({
+          type: typeCode,
+          url: urlData.publicUrl,
+          description: `${typeCode.replace('_', ' ')} asset`
+        });
+
+      if (dbError) throw dbError;
+
+      alert(`${typeCode.replace(/_/g, ' ')} updated successfully!`);
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Single asset upload failed:", err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  // 5. Live Image Deletion
   const handleDeleteImage = async (id, url) => {
     if (!confirm('Are you sure you want to delete this image?')) return;
 
     try {
-      // Extract file name from Supabase storage URL
       const fileName = url.split('/').pop();
 
       // Delete from storage
@@ -610,12 +677,133 @@ export default function AdminPage() {
         {activeTab === 'media' && (
           <div className="tab-content">
             <h2 className="tab-title">Media Manager</h2>
-            <p className="tab-desc">Edit your concert photo gallery live in the database.</p>
+            <p className="tab-desc">Upload photos to dynamically replace landing page sections.</p>
+
+            {isUploading && (
+              <div className="uploading-indicator-bar">
+                <span className="spinner-mini"></span>
+                <span>Uploading file to Supabase Storage...</span>
+              </div>
+            )}
 
             <div className="media-forms">
-              {/* Photo Gallery Uploader */}
+              
+              {/* Section 1: Hero Banner Banners */}
               <div className="glass-card media-editor-section">
-                <h4>Concert Photo Gallery</h4>
+                <h4>1. Top Header Slider Banners</h4>
+                <p className="section-desc-small">Replace the main background slides on your homepage.</p>
+                
+                <div className="admin-banner-row">
+                  <div className="banner-preview-box">
+                    <div 
+                      className="banner-preview-thumb" 
+                      style={{ backgroundImage: `url(${getAssetUrl('HERO_BANNER_1', 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=600')})` }}
+                    ></div>
+                    <div className="banner-upload-controls">
+                      <span>Slide 1 Background</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'HERO_BANNER_1')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="banner-preview-box">
+                    <div 
+                      className="banner-preview-thumb" 
+                      style={{ backgroundImage: `url(${getAssetUrl('HERO_BANNER_2', 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600')})` }}
+                    ></div>
+                    <div className="banner-upload-controls">
+                      <span>Slide 2 Background</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'HERO_BANNER_2')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Band Member Portraits */}
+              <div className="glass-card media-editor-section">
+                <h4>2. Band Member Portraits</h4>
+                <p className="section-desc-small">Replace the photos of the band members in the About section.</p>
+
+                <div className="admin-members-grid">
+                  <div className="admin-member-upload-card">
+                    <div 
+                      className="admin-member-thumb"
+                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_1', 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400')})` }}
+                    ></div>
+                    <div className="admin-member-details">
+                      <span>Vocalist (Vikram)</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'MEMBER_1')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="admin-member-upload-card">
+                    <div 
+                      className="admin-member-thumb"
+                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_2', 'https://images.unsplash.com/photo-1525201548982-be346cae56a7?q=80&w=400')})` }}
+                    ></div>
+                    <div className="admin-member-details">
+                      <span>Guitarist (Arjun)</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'MEMBER_2')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="admin-member-upload-card">
+                    <div 
+                      className="admin-member-thumb"
+                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_3', 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400')})` }}
+                    ></div>
+                    <div className="admin-member-details">
+                      <span>Bassist (Neha)</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'MEMBER_3')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="admin-member-upload-card">
+                    <div 
+                      className="admin-member-thumb"
+                      style={{ backgroundImage: `url(${getAssetUrl('MEMBER_4', 'https://images.unsplash.com/photo-1519750157634-b6d493a0f77c?q=80&w=400')})` }}
+                    ></div>
+                    <div className="admin-member-details">
+                      <span>Drummer (Karan)</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={(e) => handleSingleImageUpload(e, 'MEMBER_4')}
+                        disabled={isUploading}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Concert Photo Gallery */}
+              <div className="glass-card media-editor-section">
+                <h4>3. Concert Photo Gallery</h4>
+                <p className="section-desc-small">Add new show photos to the main landing page masonry grid.</p>
                 
                 <div className="media-row">
                   <span>Upload Live Concert Photos</span>
@@ -623,26 +811,19 @@ export default function AdminPage() {
                     type="file" 
                     accept="image/*" 
                     multiple 
-                    onChange={handleImageUpload}
+                    onChange={handleMultipleImageUpload}
                     disabled={isUploading}
                   />
                 </div>
 
-                {isUploading && (
-                  <div className="uploading-indicator">
-                    <span className="spinner"></span>
-                    <p>Uploading to storage...</p>
-                  </div>
-                )}
-
                 {/* Uploaded Gallery Grid preview */}
                 <div className="admin-gallery-preview">
-                  <h5>Currently in Gallery ({galleryImages.length})</h5>
-                  {galleryImages.length === 0 ? (
+                  <h5>Currently in Gallery ({galleryOnlyImages.length})</h5>
+                  {galleryOnlyImages.length === 0 ? (
                     <p className="no-images-text">No uploaded images yet. Use the selector above to test!</p>
                   ) : (
                     <div className="admin-gallery-grid">
-                      {galleryImages.map((img) => (
+                      {galleryOnlyImages.map((img) => (
                         <div key={img.id} className="admin-gallery-item">
                           <div 
                             className="admin-gallery-thumb" 
@@ -665,6 +846,7 @@ export default function AdminPage() {
                   )}
                 </div>
               </div>
+
             </div>
           </div>
         )}
@@ -1102,17 +1284,25 @@ export default function AdminPage() {
 
         /* Media upload rows */
         .media-editor-section {
-          margin-bottom: 20px;
+          margin-bottom: 24px;
           display: flex;
           flex-direction: column;
-          gap: 16px;
+          gap: 14px;
         }
 
         .media-editor-section h4 {
           font-size: 0.95rem;
           color: var(--color-gold-light);
           border-bottom: 1px solid rgba(228, 166, 47, 0.1);
-          padding-bottom: 8px;
+          padding-bottom: 6px;
+          margin-bottom: 2px;
+        }
+
+        .section-desc-small {
+          font-size: 0.75rem;
+          color: var(--color-text-muted);
+          margin-top: -8px;
+          margin-bottom: 6px;
         }
 
         .media-row {
@@ -1137,12 +1327,123 @@ export default function AdminPage() {
           font-size: 0.8rem;
         }
 
-        .uploading-indicator {
+        /* Section 1: Hero Banner uploader rows */
+        .admin-banner-row {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          margin-top: 4px;
+        }
+
+        .banner-preview-box {
           display: flex;
           align-items: center;
           gap: 12px;
-          font-size: 0.85rem;
+          background: rgba(0, 0, 0, 0.2);
+          padding: 8px;
+          border-radius: 8px;
+          border: 1px solid rgba(228, 166, 47, 0.05);
+        }
+
+        .banner-preview-thumb {
+          width: 80px;
+          height: 50px;
+          background-size: cover;
+          background-position: center;
+          border-radius: 4px;
+          border: 1px solid rgba(228, 166, 47, 0.15);
+          flex-shrink: 0;
+        }
+
+        .banner-upload-controls {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          flex: 1;
+        }
+
+        .banner-upload-controls span {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #ffffff;
+        }
+
+        .banner-upload-controls input {
+          font-size: 0.75rem;
+          color: var(--color-text-muted);
+        }
+
+        /* Section 2: Band Member Portraits upload grid */
+        .admin-members-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-top: 4px;
+        }
+
+        .admin-member-upload-card {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          background: rgba(0, 0, 0, 0.2);
+          padding: 8px;
+          border-radius: 8px;
+          border: 1px solid rgba(228, 166, 47, 0.05);
+          align-items: center;
+        }
+
+        .admin-member-thumb {
+          width: 100%;
+          aspect-ratio: 1.1;
+          background-size: cover;
+          background-position: center;
+          border-radius: 6px;
+          border: 1px solid rgba(228, 166, 47, 0.15);
+        }
+
+        .admin-member-details {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          width: 100%;
+        }
+
+        .admin-member-details span {
+          font-size: 0.75rem;
+          font-weight: 700;
+          color: #ffffff;
+          text-align: center;
+        }
+
+        .admin-member-details input {
+          font-size: 0.7rem;
+          color: var(--color-text-muted);
+          width: 100%;
+        }
+
+        /* Section 3: General Gallery Grid */
+        .uploading-indicator-bar {
+          background: rgba(228, 166, 47, 0.1);
+          border: 1px solid rgba(228, 166, 47, 0.2);
           color: var(--color-gold-light);
+          padding: 10px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          margin-bottom: 20px;
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+
+        .spinner-mini {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(228, 166, 47, 0.1);
+          border-top-color: var(--color-gold-main);
+          border-radius: 50%;
+          animation: spin 1s infinite linear;
         }
 
         .admin-gallery-preview {

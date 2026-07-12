@@ -1,31 +1,62 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/utils/supabaseClient';
 
-const SLIDES = [
+const DEFAULT_SLIDES = [
   {
     image: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1000&auto=format&fit=crop',
     title: 'WELCOME TO BAND SHAKTHI',
     subtitle: 'THE ULTIMATE LIVE EXPERIENCE',
     desc: 'HIGH-ENERGY POP & ROCK GIGS IN PUBS, FESTIVALS, AND EVENTS',
+    type: 'HERO_BANNER_1'
   },
   {
     image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000&auto=format&fit=crop',
     title: 'FEEL THE ELECTRIC VIBE',
     subtitle: 'JAM ARENA 2026',
     desc: 'WITNESS CAPTIVATING MUSICAL RUNS & CROWD-PULSING RHYTHMS',
+    type: 'HERO_BANNER_2'
   }
 ];
 
 export default function Hero() {
+  const [slides, setSlides] = useState(DEFAULT_SLIDES);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isVideoOpen, setIsVideoOpen] = useState(false);
 
+  // Fetch custom slide backgrounds from database on load
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('gallery_assets')
+          .select('*')
+          .in('type', ['HERO_BANNER_1', 'HERO_BANNER_2']);
+
+        if (data && data.length > 0) {
+          const updatedSlides = [...DEFAULT_SLIDES];
+          data.forEach(item => {
+            if (item.type === 'HERO_BANNER_1') {
+              updatedSlides[0].image = item.url;
+            } else if (item.type === 'HERO_BANNER_2') {
+              updatedSlides[1].image = item.url;
+            }
+          });
+          setSlides(updatedSlides);
+        }
+      } catch (err) {
+        console.error("Failed to load banners:", err);
+      }
+    };
+    fetchBanners();
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % SLIDES.length);
+      setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [slides]);
 
   const openVideoModal = () => setIsVideoOpen(true);
   const closeVideoModal = () => setIsVideoOpen(false);
@@ -40,7 +71,7 @@ export default function Hero() {
   return (
     <section id="home" className="hero-section">
       {/* Slider Backgrounds */}
-      {SLIDES.map((slide, idx) => (
+      {slides.map((slide, idx) => (
         <div 
           key={idx} 
           className={`hero-slide ${idx === currentSlide ? 'active' : ''}`}
@@ -84,7 +115,7 @@ export default function Hero() {
 
       {/* Slider Navigation Dots */}
       <div className="slider-dots">
-        {SLIDES.map((_, idx) => (
+        {slides.map((_, idx) => (
           <button 
             key={idx} 
             className={`dot ${idx === currentSlide ? 'active' : ''}`}
@@ -100,7 +131,6 @@ export default function Hero() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={closeVideoModal}>×</button>
             <div className="video-wrapper">
-              {/* Embed placeholder using a beautiful live concert video */}
               <iframe 
                 width="100%" 
                 height="100%" 
@@ -162,7 +192,7 @@ export default function Hero() {
           z-index: 3;
           width: 100%;
           text-align: center;
-          margin-top: -40px; /* Offset for central play button balance */
+          margin-top: -40px;
         }
 
         .live-badge {
@@ -232,7 +262,7 @@ export default function Hero() {
         }
 
         .play-border-box {
-          border: 1.5px solid var(--color-red-accent); /* Matches your red dot style */
+          border: 1.5px solid var(--color-red-accent);
           padding: 10px;
           border-radius: 8px;
           transition: var(--transition-smooth);
@@ -348,7 +378,7 @@ export default function Hero() {
 
         .video-wrapper {
           position: relative;
-          padding-bottom: 56.25%; /* 16:9 ratio */
+          padding-bottom: 56.25%;
           height: 0;
         }
 

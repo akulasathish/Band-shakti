@@ -1,33 +1,67 @@
 'use client';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/utils/supabaseClient';
 
-const MEMBERS = [
+const DEFAULT_MEMBERS = [
   {
     name: 'Vikram Shakthi',
     role: 'Lead Vocals / Frontman',
     image: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400&auto=format&fit=crop',
-    bio: 'The powerhouse voice of the band, bringing pure energy and crowd connection to every single gig.'
+    bio: 'The powerhouse voice of the band, bringing pure energy and crowd connection to every single gig.',
+    type: 'MEMBER_1'
   },
   {
     name: 'Arjun Iyer',
     role: 'Lead Guitarist',
     image: 'https://images.unsplash.com/photo-1525201548982-be346cae56a7?q=80&w=400&auto=format&fit=crop',
-    bio: 'Fusing classical runs with heavy electric blues solos. Shreds guitar riffs that define the Shakthi sound.'
+    bio: 'Fusing classical runs with heavy electric blues solos. Shreds guitar riffs that define the Shakthi sound.',
+    type: 'MEMBER_2'
   },
   {
     name: 'Neha Sen',
     role: 'Bass / Backing Vocals',
     image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=400&auto=format&fit=crop',
-    bio: 'The grooving heartbeat of the band. Lays down heavy basslines while backing the vocals with harmonies.'
+    bio: 'The grooving heartbeat of the band. Lays down heavy basslines while backing the vocals with harmonies.',
+    type: 'MEMBER_3'
   },
   {
     name: 'Karan Mehta',
     role: 'Drums / Percussions',
     image: 'https://images.unsplash.com/photo-1519750157634-b6d493a0f77c?q=80&w=400&auto=format&fit=crop',
-    bio: 'A rhythm powerhouse. Sets the tempo with explosive rock drumming and customized beats.'
+    bio: 'A rhythm powerhouse. Sets the tempo with explosive rock drumming and customized beats.',
+    type: 'MEMBER_4'
   }
 ];
 
 export default function About() {
+  const [members, setMembers] = useState(DEFAULT_MEMBERS);
+
+  // Fetch custom member profile photos from database on load
+  useEffect(() => {
+    const fetchMemberImages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('gallery_assets')
+          .select('*')
+          .in('type', ['MEMBER_1', 'MEMBER_2', 'MEMBER_3', 'MEMBER_4']);
+
+        if (data && data.length > 0) {
+          const updatedMembers = [...DEFAULT_MEMBERS];
+          data.forEach(item => {
+            const idx = updatedMembers.findIndex(m => m.type === item.type);
+            if (idx !== -1) {
+              updatedMembers[idx].image = item.url;
+            }
+          });
+          setMembers(updatedMembers);
+        }
+      } catch (err) {
+        console.error("Failed to load member profile photos:", err);
+      }
+    };
+    fetchMemberImages();
+  }, []);
+
   return (
     <section id="about" className="section-padding about-section">
       <div className="about-wrapper">
@@ -44,7 +78,7 @@ export default function About() {
         <h2 className="section-title">The Band Members</h2>
         
         <div className="members-grid">
-          {MEMBERS.map((member, idx) => (
+          {members.map((member, idx) => (
             <div key={idx} className="member-card">
               <div 
                 className="member-img" 
@@ -149,7 +183,7 @@ export default function About() {
           width: 100%;
           padding: 20px;
           z-index: 2;
-          transform: translateY(35px); /* Hide bio initially, show on hover */
+          transform: translateY(35px);
           transition: var(--transition-smooth);
         }
 
