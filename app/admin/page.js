@@ -347,7 +347,7 @@ export default function AdminPage() {
         ticketId = urlObj.searchParams.get('verify');
       }
 
-      // Client-side UUID Format Validation (Prevents database syntax errors)
+      // Client-side UUID Format Validation
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(ticketId)) {
         setScanResult({
@@ -359,7 +359,6 @@ export default function AdminPage() {
       }
 
       if (activeTab === 'scan') {
-        // Joint query to retrieve buyer details, event name, and pax count
         const { data: ticket, error } = await supabase
           .from('tickets')
           .select('*, events(title)')
@@ -398,7 +397,6 @@ export default function AdminPage() {
             event: ticket.events?.title || 'Concert Live Show'
           });
         } else {
-          // Valid ticket! Mark as scanned
           const nowStr = new Date().toISOString();
           const { error: updateError } = await supabase
             .from('tickets')
@@ -459,9 +457,14 @@ export default function AdminPage() {
 
       if (dbError) throw dbError;
 
+      // Save activated ticket details so the cashier can download the PDF pass card
       setActivationResult({
         success: true,
-        message: `Pass Activated! QR sticker is now bound to "${guestName}" for ${guestPax} pax. Event: "${activeEvent.title}"`
+        message: `Pass Activated! Pre-printed QR sticker is now bound to "${guestName}" for ${guestPax} pax.`,
+        name: guestName,
+        phone: guestPhone || '00000 00000',
+        pax: guestPax,
+        ticketId: ticketId
       });
       
       setGuestName('');
@@ -901,14 +904,31 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Success message */}
+            {/* Success message with Download PDF Pass capability */}
             {activationResult && (
               <div className="glass-card activation-success-card">
                 <h3>✓ Pass Activated!</h3>
                 <p>{activationResult.message}</p>
-                <button className="btn-gold" onClick={() => { setActivationResult(null); fetchStats(); setActiveTab('stats'); }}>
-                  Done
-                </button>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
+                  <button 
+                    type="button"
+                    className="btn-gold"
+                    onClick={() => {
+                      const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(activationResult.name)}&phone=${encodeURIComponent(activationResult.phone)}&qty=${activationResult.pax}&id=${activationResult.ticketId}`;
+                      window.open(downloadUrl, '_blank');
+                    }}
+                  >
+                    Download Printable Entry Pass
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn-outline" 
+                    onClick={() => { setActivationResult(null); fetchStats(); setActiveTab('stats'); }}
+                  >
+                    Done (Back to Dashboard)
+                  </button>
+                </div>
               </div>
             )}
           </div>
