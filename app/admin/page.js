@@ -33,6 +33,15 @@ export default function AdminPage() {
   // Dynamic Band Members list loaded from DB
   const [bandMembers, setBandMembers] = useState([]);
 
+  // --- EVENTS TRANSITION MANAGER STATES ---
+  const [eventsList, setEventsList] = useState([]);
+  const [showCreateEventForm, setShowCreateEventForm] = useState(false);
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
+  const [newEventVenue, setNewEventVenue] = useState('');
+  const [newEventPrice, setNewEventPrice] = useState('500');
+  const [newEventCapacity, setNewEventCapacity] = useState('400');
+
   // CSV Import States
   const [csvFile, setCsvFile] = useState(null);
   const [importedLogs, setImportedLogs] = useState([
@@ -89,13 +98,32 @@ export default function AdminPage() {
       if (error) throw error;
       if (data) {
         setActiveEvent(data);
+      } else {
+        setActiveEvent({ id: null, title: 'No Active Event' });
       }
     } catch (err) {
       console.error("Failed to load active event:", err);
     }
   };
 
-  // 3. Fetch live uploaded gallery assets & sort dynamic sections
+  // 3. Fetch all events in system
+  const fetchEventsList = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setEventsList(data);
+      }
+    } catch (err) {
+      console.error("Error fetching events:", err);
+    }
+  };
+
+  // 4. Fetch live uploaded gallery assets & sort dynamic sections
   const fetchGalleryImages = async () => {
     try {
       const { data, error } = await supabase
@@ -158,21 +186,39 @@ export default function AdminPage() {
     }
   };
 
-  // 4. Fetch live statistics from database tickets table
+  // 5. Fetch live statistics from database tickets table
   const fetchStats = async () => {
     try {
+      // Get the currently active event ID
+      const { data: actEvent } = await supabase
+        .from('events')
+        .select('id, total_capacity')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      const eventId = actEvent ? actEvent.id : null;
+      const capacity = actEvent ? actEvent.total_capacity : 400;
+
+      if (!eventId) {
+        setDbStats({ totalTicketsSold: 0, revenue: '₹0', checkedIn: 0, capacity: 400 });
+        return;
+      }
+
+      // Fetch tickets specifically for this active event
       const { data, error } = await supabase
         .from('tickets')
-        .select('*');
+        .select('*')
+        .eq('event_id', eventId);
 
       if (error) throw error;
 
       if (data) {
         const paidTickets = data.filter(t => t.status === 'PAID');
-        
-        // Sum total pax sold and total pax checked-in
         const totalPaxSold = paidTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
         const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        
+        // Retrieve ticket prices dynamically or default to 500
         const revenueAmount = paidTickets.reduce((sum, t) => {
           return sum + ((t.pax || 1) * 500);
         }, 0);
@@ -181,7 +227,7 @@ export default function AdminPage() {
           totalTicketsSold: totalPaxSold,
           revenue: `₹${revenueAmount.toLocaleString('en-IN')}`,
           checkedIn: checkedInCount,
-          capacity: 400
+          capacity: capacity
         });
       }
     } catch (err) {
@@ -195,6 +241,7 @@ export default function AdminPage() {
       fetchActiveEvent();
       fetchStats();
       fetchGalleryImages();
+      fetchEventsList();
     }
   }, [isAuthenticated, activeTab]);
 
@@ -207,6 +254,99 @@ export default function AdminPage() {
 
   const handleMemberTextChange = (id, field, value) => {
     setBandMembers(bandMembers.map(m => m.id === id ? { ...m, [field]: value } : m));
+  };
+
+  // --- EVENTS TRANSITION MANAGER ACTIONS ---
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    if (!newEventTitle || !newEventDate || !newEventVenue) {
+      alert("Please fill in event Title, Date, and Venue.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const { error } = await supabase
+        .from('events')
+        .insert({
+          title: newEventTitle,
+          event_date: new Date(newEventDate).toISOString(),
+          venue: newEventVenue,
+          ticket_price: parseFloat(newEventPrice) || 500,
+          total_capacity: parseInt(newEventCapacity) || 400,
+          is_active: false // Created inactive, admin switches to activate
+        });
+
+      if (error) throw error;
+
+      alert('Event scheduled successfully! You can switch to it anytime.');
+      setNewEventTitle('');
+      setNewEventDate('');
+      setNewEventVenue('');
+      setNewEventPrice('500');
+      setNewEventCapacity('400');
+      setShowCreateEventForm(false);
+      fetchEventsList();
+    } catch (err) {
+      console.error("Failed to schedule event:", err);
+      alert("Failed to create event: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSetActiveEvent = async (eventId) => {
+    setIsUploading(true);
+    try {
+      // 1. Mark all other events inactive
+      const { error: err1 } = await supabase
+        .from('events')
+        .update({ is_active: false })
+        .neq('id', eventId);
+
+      if (err1) throw err1;
+
+      // 2. Mark selected event active
+      const { error: err2 } = await supabase
+        .from('events')
+        .update({ is_active: true })
+        .eq('id', eventId);
+
+      if (err2) throw err2;
+
+      alert('Active event shifted! The public site booking widget has updated.');
+      await fetchActiveEvent();
+      await fetchEventsList();
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to activate event:", err);
+      alert("Switch failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!confirm('Are you sure you want to delete this event? This will delete all ticket registrations bound to it.')) return;
+    setIsUploading(true);
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId);
+
+      if (error) throw error;
+
+      alert('Event deleted successfully.');
+      await fetchActiveEvent();
+      await fetchEventsList();
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to delete event:", err);
+      alert("Delete failed: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   // --- DYNAMIC SLIDES CONTROL MUTATIONS ---
@@ -803,7 +943,7 @@ export default function AdminPage() {
       {/* Main Content Area */}
       <div className="admin-body">
         
-        {/* TAB 1: DASHBOARD STATS */}
+        {/* TAB 1: DASHBOARD STATS & EVENT MANAGER */}
         {activeTab === 'stats' && (
           <div className="tab-content">
             <h2 className="tab-title">Sales Dashboard</h2>
@@ -837,7 +977,8 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="action-cards">
+            {/* Quick Actions */}
+            <div className="action-cards" style={{ marginBottom: '24px' }}>
               <div className="glass-card action-box" onClick={() => setActiveTab('scan')}>
                 <h4>Launch Scanner</h4>
                 <p>Verify gate entries using device camera</p>
@@ -846,6 +987,159 @@ export default function AdminPage() {
                 <h4>Sticker Activator</h4>
                 <p>Register counter sales and activate passes</p>
               </div>
+            </div>
+
+            {/* EVENT TRANSITION MANAGER PANEL */}
+            <div className="glass-card events-manager-panel" style={{ padding: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h4 style={{ margin: 0, color: 'var(--color-gold-light)' }}>Event Transition Manager</h4>
+                <button 
+                  type="button" 
+                  className="btn-gold" 
+                  style={{ fontSize: '0.65rem', padding: '5px 10px', borderRadius: '4px' }}
+                  onClick={() => setShowCreateEventForm(!showCreateEventForm)}
+                >
+                  {showCreateEventForm ? 'Cancel' : '+ New Event'}
+                </button>
+              </div>
+
+              {/* Create New Event Form (Slide open drawer) */}
+              {showCreateEventForm && (
+                <form onSubmit={handleCreateEvent} style={{ borderBottom: '1px dashed rgba(228, 166, 47, 0.15)', paddingBottom: '16px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div className="input-group-mini">
+                    <label>Event Title</label>
+                    <input 
+                      type="text" 
+                      className="mini-text-input" 
+                      placeholder="e.g. Band Shakthi Live — Jam Arena" 
+                      value={newEventTitle} 
+                      onChange={(e) => setNewEventTitle(e.target.value)} 
+                      required
+                    />
+                  </div>
+                  
+                  <div className="input-group-mini">
+                    <label>Event Date & Time</label>
+                    <input 
+                      type="datetime-local" 
+                      className="mini-text-input" 
+                      value={newEventDate} 
+                      onChange={(e) => setNewEventDate(e.target.value)} 
+                      required
+                    />
+                  </div>
+
+                  <div className="input-group-mini">
+                    <label>Venue Location</label>
+                    <input 
+                      type="text" 
+                      className="mini-text-input" 
+                      placeholder="e.g. The DownTown Pub, Ground Stage" 
+                      value={newEventVenue} 
+                      onChange={(e) => setNewEventVenue(e.target.value)} 
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div className="input-group-mini" style={{ flex: 1 }}>
+                      <label>Ticket Price (₹)</label>
+                      <input 
+                        type="number" 
+                        className="mini-text-input" 
+                        value={newEventPrice} 
+                        onChange={(e) => setNewEventPrice(e.target.value)} 
+                        required
+                      />
+                    </div>
+                    <div className="input-group-mini" style={{ flex: 1 }}>
+                      <label>Capacity</label>
+                      <input 
+                        type="number" 
+                        className="mini-text-input" 
+                        value={newEventCapacity} 
+                        onChange={(e) => setNewEventCapacity(e.target.value)} 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="btn-gold" style={{ fontSize: '0.75rem', padding: '6px 12px', borderRadius: '6px', width: '100%', marginTop: '6px' }}>
+                    Schedule Concert Gig
+                  </button>
+                </form>
+              )}
+
+              {/* Active Event Status Display */}
+              <div style={{ background: 'rgba(32, 186, 90, 0.05)', border: '1px solid rgba(32, 186, 90, 0.2)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <div className="live-indicator" style={{ backgroundColor: '#20ba5a', boxShadow: '0 0 10px rgba(32, 186, 90, 0.6)' }}></div>
+                  <span style={{ fontSize: '0.65rem', color: '#20ba5a', fontWeight: 'bold', uppercase: 'true' }}>CURRENT ACTIVE EVENT</span>
+                </div>
+                <h5 style={{ fontSize: '0.9rem', margin: '4px 0', color: '#fff' }}>{activeEvent.title}</h5>
+                <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>ID: {activeEvent.id || 'None'}</span>
+              </div>
+
+              {/* Scheduled Events List */}
+              <div className="events-list-stack" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>All Scheduled Shows ({eventsList.length}):</span>
+                {eventsList.length === 0 ? (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0 }}>No other events scheduled. Click "+ New Event" to create one!</p>
+                ) : (
+                  eventsList.map((evt) => (
+                    <div 
+                      key={evt.id} 
+                      style={{ 
+                        background: evt.is_active ? 'rgba(228, 166, 47, 0.05)' : 'rgba(0,0,0,0.15)', 
+                        border: evt.is_active ? '1px solid rgba(228, 166, 47, 0.2)' : '1px solid rgba(255,255,255,0.05)', 
+                        padding: '10px', 
+                        borderRadius: '6px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1, paddingRight: '10px' }}>
+                          <h6 style={{ fontSize: '0.8rem', margin: 0, color: evt.is_active ? 'var(--color-gold-light)' : '#fff' }}>{evt.title}</h6>
+                          <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
+                            📅 {new Date(evt.event_date).toLocaleDateString()} | 📍 {evt.venue}
+                          </p>
+                          <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                            🎫 ₹{evt.ticket_price} | Capacity: {evt.total_capacity}
+                          </p>
+                        </div>
+
+                        {!evt.is_active && (
+                          <button 
+                            type="button" 
+                            className="btn-gold" 
+                            style={{ fontSize: '0.6rem', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}
+                            onClick={() => handleSetActiveEvent(evt.id)}
+                            disabled={isUploading}
+                          >
+                            Set Active
+                          </button>
+                        )}
+                      </div>
+
+                      {!evt.is_active && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px dashed rgba(255,255,255,0.03)', paddingTop: '4px' }}>
+                          <button 
+                            type="button" 
+                            style={{ background: 'transparent', border: 'none', color: '#ff5252', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
+                            onClick={() => handleDeleteEvent(evt.id)}
+                            disabled={isUploading}
+                          >
+                            Delete Event
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
             </div>
           </div>
         )}

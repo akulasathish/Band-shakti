@@ -2,18 +2,62 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/utils/supabaseClient';
 
-const TICKET_PRICE = 500; // Price in INR
-
 export default function Booking() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [freeTickets, setFreeTickets] = useState(0);
-  const [payableAmount, setPayableAmount] = useState(TICKET_PRICE);
+  const [ticketPrice, setTicketPrice] = useState(500);
+  const [payableAmount, setPayableAmount] = useState(500);
   const [totalTickets, setTotalTickets] = useState(1);
   const [promoMessage, setPromoMessage] = useState('');
   const [showPromoPopup, setShowPromoPopup] = useState(false);
+
+  const [activeEvent, setActiveEvent] = useState({
+    id: null,
+    title: 'Band Shakthi Live — Jam Arena Show',
+    date: 'Next Friday | 8:00 PM onwards',
+    venue: 'The DownTown Pub, Ground Stage'
+  });
+
+  // Fetch active event details from database on load
+  useEffect(() => {
+    const fetchActiveEvent = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+          const dateObj = new Date(data.event_date);
+          const formattedDate = dateObj.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric'
+          }) + ' | ' + dateObj.toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit'
+          });
+
+          setActiveEvent({
+            id: data.id,
+            title: data.title,
+            date: `${formattedDate} onwards`,
+            venue: data.venue
+          });
+          setTicketPrice(parseFloat(data.ticket_price) || 500);
+        }
+      } catch (err) {
+        console.error("Failed to load active event details:", err);
+      }
+    };
+    fetchActiveEvent();
+  }, []);
 
   // Auto show promo popup on load
   useEffect(() => {
@@ -39,8 +83,8 @@ export default function Booking() {
 
     setFreeTickets(free);
     setTotalTickets(quantity + free);
-    setPayableAmount(quantity * TICKET_PRICE);
-  }, [quantity]);
+    setPayableAmount(quantity * ticketPrice);
+  }, [quantity, ticketPrice]);
 
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
@@ -54,26 +98,16 @@ export default function Booking() {
     }
 
     try {
-      // 1. Get the active event ID from database
-      const { data: eventData, error: eventError } = await supabase
-        .from('events')
-        .select('id')
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (eventError) throw eventError;
-      const eventId = eventData ? eventData.id : null;
-
-      // 2. Insert row into tickets table
+      // 1. Insert row into tickets table using activeEvent.id
       const { data: ticketData, error: ticketError } = await supabase
         .from('tickets')
         .insert({
-          event_id: eventId,
+          event_id: activeEvent.id,
           buyer_name: name,
           buyer_email: email,
           buyer_phone: phone,
           ticket_type: 'ONLINE',
+          pax: totalTickets,
           status: 'PAID', // Bypassing payments, automatically marked as paid
           scanned: false
         })
@@ -83,10 +117,10 @@ export default function Booking() {
       if (ticketError) throw ticketError;
       const ticketId = ticketData.id;
 
-      // 3. Inform user of booking success
+      // 2. Inform user of booking success
       alert(`Booking Successful!\nTotal Paid: ₹${payableAmount} for ${totalTickets} passes (${quantity} Paid + ${freeTickets} Free).\n\nYour PDF Ticket Pass will download automatically now!`);
 
-      // 4. Trigger PDF download with the valid DB Ticket UUID
+      // 3. Trigger PDF download with the valid DB Ticket UUID
       const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&qty=${totalTickets}&id=${ticketId}`;
       window.open(downloadUrl, '_blank');
 
@@ -111,9 +145,9 @@ export default function Booking() {
       <div className="glass-card booking-card">
         <div className="show-header">
           <div className="show-badge">UPCOMING EVENT</div>
-          <h3>Band Shakthi Live — Jam Arena Show</h3>
-          <p className="show-date">📅 Next Friday | 🕗 8:00 PM onwards</p>
-          <p className="show-venue">📍 The DownTown Pub, Ground Stage</p>
+          <h3>{activeEvent.title}</h3>
+          <p className="show-date">📅 {activeEvent.date}</p>
+          <p className="show-venue">📍 {activeEvent.venue}</p>
         </div>
 
         <form onSubmit={handleBookingSubmit} className="booking-form">
@@ -138,7 +172,7 @@ export default function Booking() {
           <div className="pricing-breakdown">
             <div className="pricing-line">
               <span>Paid Tickets:</span>
-              <span>{quantity} x ₹{TICKET_PRICE}</span>
+              <span>{quantity} x ₹{ticketPrice}</span>
             </div>
             {freeTickets > 0 && (
               <div className="pricing-line free-line">
