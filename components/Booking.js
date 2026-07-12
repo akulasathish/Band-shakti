@@ -51,7 +51,13 @@ export default function Booking() {
       alert("Please fill in all buyer details.");
       return;
     }
-    alert(`Mock Checkout: Initiating payment of ₹${payableAmount} via Instamojo for ${totalTickets} tickets (${quantity} Paid + ${freeTickets} Free). Payment gateway integration is scheduled for Phase 2!`);
+    
+    // Show payment success dialog
+    alert(`Mock Instamojo Payment Successful!\nTotal Paid: ₹${payableAmount} for ${totalTickets} passes (${quantity} Paid + ${freeTickets} Free).\n\nYour PDF Ticket Pass will download automatically now, and a copy has been sent to your email inbox.`);
+    
+    // Trigger PDF download in a new tab
+    const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&qty=${totalTickets}`;
+    window.open(downloadUrl, '_blank');
   };
 
   return (
