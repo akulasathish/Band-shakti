@@ -223,6 +223,50 @@ a {
   background: var(--gold-gradient);
 }
 
+/* Input & Form Controls Styling */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.input-group label {
+  font-family: var(--font-family-title);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-gold-light);
+}
+
+.input-group input, .select-input, textarea {
+  background: var(--color-bg-input);
+  border: 1px solid rgba(228, 166, 47, 0.15);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.9rem;
+  outline: none;
+  font-family: var(--font-family-sans);
+  transition: var(--transition-smooth);
+  width: 100%;
+}
+
+.input-group input:focus, .select-input:focus, textarea:focus {
+  border-color: var(--color-gold-main);
+  box-shadow: 0 0 10px rgba(228, 166, 47, 0.1);
+}
+
+.select-input option {
+  background-color: #0d0d12;
+  color: #ffffff;
+}
+
+textarea {
+  resize: none;
+}
+
 /* Desktop Preview Enhancements */
 @media (min-width: 481px) {
   body {
