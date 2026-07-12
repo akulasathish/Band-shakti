@@ -71,8 +71,13 @@ export default function Hero() {
         <div 
           key={idx} 
           className={`hero-slide ${idx === currentSlide ? 'active' : ''}`}
-          style={{ backgroundImage: `url(${slide.image})` }}
         >
+          {/* Isolated Motion Photo Layer */}
+          <div 
+            className="slide-bg"
+            style={{ backgroundImage: `url(${slide.image})` }}
+          ></div>
+
           {/* Dark Overlay with subtle tint */}
           <div className="hero-overlay"></div>
           
@@ -124,20 +129,49 @@ export default function Hero() {
           left: 0;
           width: 100%;
           height: 100%;
-          background-size: cover;
-          background-position: center;
           opacity: 0;
           visibility: hidden;
-          transition: opacity 1s ease-in-out, visibility 1s ease-in-out;
+          transition: opacity 1.2s ease-in-out, visibility 1.2s ease-in-out;
           display: flex;
           align-items: center;
           padding: 30px 20px;
+          overflow: hidden;
         }
 
         .hero-slide.active {
           opacity: 1;
           visibility: visible;
           z-index: 1;
+        }
+
+        /* Cinematic Motion Photo Background */
+        .slide-bg {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-size: cover;
+          background-position: center;
+          z-index: 1;
+          transform: scale(1.05); /* Slight start zoom to hide scaling gaps */
+        }
+
+        /* Trigger Slow Zoom/Pan Ken Burns motion on Active Slide */
+        .hero-slide.active .slide-bg {
+          animation: kenBurnsAnimation 20s infinite alternate ease-in-out;
+        }
+
+        @keyframes kenBurnsAnimation {
+          0% {
+            transform: scale(1.05) translate(0, 0);
+          }
+          50% {
+            transform: scale(1.13) translate(-1%, -0.5%);
+          }
+          100% {
+            transform: scale(1.05) translate(0.5%, 0.5%);
+          }
         }
 
         .hero-overlay {
