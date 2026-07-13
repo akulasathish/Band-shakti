@@ -25,13 +25,17 @@ export const viewport = {
   userScalable: false,
 };
 
+import StyledJsxRegistry from "./registry";
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={`${montserrat.variable} ${outfit.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body>{children}</body>
+      <body>
+        <StyledJsxRegistry>{children}</StyledJsxRegistry>
+      </body>
     </html>
   );
 }
