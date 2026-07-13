@@ -1094,7 +1094,7 @@ export default function AdminPage() {
       {/* App Header */}
       <header className="admin-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Image src="/logo.png" alt="Logo" width={154} height={53} className="logo-img" style={{ objectFit: 'contain' }} />
+          <Image src="/logo.png" alt="Logo" width={200} height={69} className="logo-img" style={{ objectFit: 'contain' }} />
           <span className="badge-pwa">ADMIN APP</span>
         </div>
         <button 
