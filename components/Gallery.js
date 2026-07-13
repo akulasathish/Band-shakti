@@ -32,6 +32,7 @@ const DUMMY_IMAGES = [
 export default function Gallery() {
   const [images, setImages] = useState([]);
   const [activeIdx, setActiveIdx] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   const loadImages = async () => {
     try {
@@ -79,7 +80,7 @@ export default function Gallery() {
 
       {/* Grid Layout - 2 Columns on Mobile */}
       <div className="gallery-grid">
-        {images.map((img, idx) => (
+        {(showAll ? images : images.slice(0, 6)).map((img, idx) => (
           <div key={idx} className="gallery-item" onClick={() => openLightbox(idx)}>
             <div 
               className="gallery-thumbnail" 
@@ -97,6 +98,18 @@ export default function Gallery() {
           </div>
         ))}
       </div>
+
+      {/* Show More / Show Less Button */}
+      {images.length > 6 && (
+        <div className="show-more-btn-container">
+          <button 
+            className="btn-show-more" 
+            onClick={() => setShowAll(!showAll)}
+          >
+            {showAll ? 'Show Less' : 'Show More'}
+          </button>
+        </div>
+      )}
 
       {/* Lightbox Overlay */}
       {activeIdx !== null && images[activeIdx] && (
@@ -282,7 +295,34 @@ export default function Gallery() {
             margin: -12px auto 20px auto;
           }
         }
-      
+
+        .show-more-btn-container {
+          display: flex;
+          justify-content: center;
+          margin-top: 36px;
+          width: 100%;
+        }
+
+        .btn-show-more {
+          background: transparent;
+          border: 1px solid var(--color-gold-main);
+          color: var(--color-gold-main);
+          padding: 10px 24px;
+          font-family: var(--font-family-title);
+          font-size: 0.85rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: var(--transition-smooth);
+        }
+
+        .btn-show-more:hover {
+          background: var(--gold-gradient);
+          color: #070709;
+          box-shadow: var(--shadow-gold-glow);
+        }
       `}</style>
     </section>
   );

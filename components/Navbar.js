@@ -24,8 +24,8 @@ export default function Navbar() {
             <Image 
               src="/logo.png" 
               alt="Band Shakthi Logo" 
-              width={140} 
-              height={50} 
+              width={196} 
+              height={70} 
               priority
               className="logo-img"
             />

@@ -9,16 +9,29 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Hydration-safe persistent authentication check
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (localStorage.getItem('admin_authenticated') === 'true') {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
   
-  // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'csv' | 'media'
+  // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'more' | 'csv' | 'media' | 'history'
   const [activeTab, setActiveTab] = useState('stats');
-  const [stickerCount, setStickerCount] = useState(100);
+  const [stickerCount, setStickerCount] = useState(1);
   
   // Scanner States
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
   const html5QrCodeRef = useRef(null);
+
+  // Tickets & Passes History States
+  const [ticketsHistory, setTicketsHistory] = useState([]);
+  const [historySearch, setHistorySearch] = useState('');
 
   // Counter Sell / Sticker Activator Inputs
   const [guestName, setGuestName] = useState('');
@@ -78,14 +91,21 @@ export default function AdminPage() {
       if (error) throw error;
 
       if (data) {
+        localStorage.setItem('admin_authenticated', 'true');
         setIsAuthenticated(true);
       } else {
-        alert('Invalid admin credentials. Use admin@bandshakti.com / 8686113435');
+        alert('Invalid admin credentials.');
       }
     } catch (err) {
       console.error("Login verification failed:", err);
       alert('Login query failed: ' + err.message);
     }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_authenticated');
+    setIsAuthenticated(false);
+    setActiveTab('stats');
   };
 
   // 2. Fetch active event title for counter registration
@@ -237,6 +257,23 @@ export default function AdminPage() {
     }
   };
 
+  // --- TICKETS & PASSES HISTORY ---
+  const fetchTicketsHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tickets')
+        .select('*, events(title)')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setTicketsHistory(data);
+      }
+    } catch (err) {
+      console.error("Error fetching tickets history:", err);
+    }
+  };
+
   // Sync details on tab updates
   useEffect(() => {
     if (isAuthenticated) {
@@ -244,6 +281,9 @@ export default function AdminPage() {
       fetchStats();
       fetchGalleryImages();
       fetchEventsList();
+      if (activeTab === 'history') {
+        fetchTicketsHistory();
+      }
     }
   }, [isAuthenticated, activeTab]);
 
@@ -954,8 +994,6 @@ export default function AdminPage() {
             </button>
           </form>
         </div>
-
-        <p className="login-note">Credentials for UI Review:<br /><b>admin@bandshakti.com</b> / <b>8686113435</b></p>
         
         <style jsx global>{`
           .login-page {
@@ -1020,8 +1058,25 @@ export default function AdminPage() {
     <main className="admin-mobile-container admin-app">
       {/* App Header */}
       <header className="admin-header">
-        <Image src="/logo.png" alt="Logo" width={110} height={38} className="logo-img" />
-        <span className="badge-pwa">ADMIN APP</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Image src="/logo.png" alt="Logo" width={154} height={53} className="logo-img" style={{ objectFit: 'contain' }} />
+          <span className="badge-pwa">ADMIN APP</span>
+        </div>
+        <button 
+          onClick={handleLogout} 
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-red-accent)',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em'
+          }}
+        >
+          Logout
+        </button>
       </header>
 
       {/* Main Content Area */}
@@ -1487,8 +1542,27 @@ export default function AdminPage() {
         {/* TAB 4: ZOMATO CSV IMPORTER */}
         {activeTab === 'csv' && (
           <div className="tab-content">
-            <h2 className="tab-title">CSV Importer</h2>
-            <p className="tab-desc">Import guest sheets from Zomato District or BookMyShow.</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 className="tab-title" style={{ marginBottom: 0 }}>CSV Importer</h2>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('more')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(228, 166, 47, 0.3)',
+                  color: 'var(--color-gold-light)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ← Back to Tools
+              </button>
+            </div>
+            <p className="tab-desc" style={{ marginTop: '-8px', marginBottom: '16px' }}>Import guest sheets from Zomato District or BookMyShow.</p>
 
             <div className="glass-card csv-importer-card">
               <form onSubmit={handleCsvSubmit} className="csv-form">
@@ -1535,8 +1609,49 @@ export default function AdminPage() {
         {/* TAB 5: WEBSITE CONTENT EDITOR */}
         {activeTab === 'media' && (
           <div className="tab-content">
-            <h2 className="tab-title">Media & Content Manager</h2>
-            <p className="tab-desc">Modify landing page images, slides, names, and roles dynamically.</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 className="tab-title" style={{ marginBottom: 0 }}>Media & Content Manager</h2>
+              {mediaSubTab === 'menu' ? (
+                <button 
+                  type="button" 
+                  onClick={() => setActiveTab('more')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(228, 166, 47, 0.3)',
+                    color: 'var(--color-gold-light)',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ← Back to Tools
+                </button>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={() => setMediaSubTab('menu')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(228, 166, 47, 0.3)',
+                    color: 'var(--color-gold-light)',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ← Back to Media
+                </button>
+              )}
+            </div>
+            {mediaSubTab === 'menu' && (
+              <p className="tab-desc" style={{ marginTop: '-8px', marginBottom: '16px' }}>Modify landing page images, slides, names, and roles dynamically.</p>
+            )}
 
             {isUploading && (
               <div className="uploading-indicator-bar">
@@ -1855,6 +1970,165 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* TAB 6: MORE TOOLS INDEX MENU */}
+        {activeTab === 'more' && (
+          <div className="tab-content">
+            <h2 className="tab-title">More Tools</h2>
+            <p className="tab-desc" style={{ marginBottom: '24px' }}>Administrative utilities and system operations.</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Tool 1: Tickets History */}
+              <div 
+                className="glass-card tool-link-card" 
+                onClick={() => { setActiveTab('history'); fetchTicketsHistory(); }}
+                style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', borderRadius: '12px', background: 'var(--color-bg-card)', transition: 'all 0.2s' }}
+              >
+                <div className="tool-icon" style={{ color: 'var(--color-gold-main)', background: 'rgba(228, 166, 47, 0.1)', width: '44px', height: '44px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Attendance & Tickets History</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>View all online bookings, offline sales, and guest check-in statuses.</p>
+                </div>
+              </div>
+
+              {/* Tool 2: Media Manager */}
+              <div 
+                className="glass-card tool-link-card" 
+                onClick={() => { setActiveTab('media'); setMediaSubTab('menu'); }}
+                style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', borderRadius: '12px', background: 'var(--color-bg-card)', transition: 'all 0.2s' }}
+              >
+                <div className="tool-icon" style={{ color: 'var(--color-gold-main)', background: 'rgba(228, 166, 47, 0.1)', width: '44px', height: '44px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Website Content Manager</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>Modify homepage slider banners, update band members, and upload gallery photos.</p>
+                </div>
+              </div>
+
+              {/* Tool 3: CSV Importer */}
+              <div 
+                className="glass-card tool-link-card" 
+                onClick={() => setActiveTab('csv')}
+                style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', borderRadius: '12px', background: 'var(--color-bg-card)', transition: 'all 0.2s' }}
+              >
+                <div className="tool-icon" style={{ color: 'var(--color-gold-main)', background: 'rgba(228, 166, 47, 0.1)', width: '44px', height: '44px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Zomato / BMS CSV Importer</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>Import bulk third-party booking spreadsheets directly into the gate database.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: TICKETS & ATTENDANCE HISTORY LIST */}
+        {activeTab === 'history' && (
+          <div className="tab-content">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 className="tab-title" style={{ marginBottom: 0 }}>Tickets History</h2>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('more')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(228, 166, 47, 0.3)',
+                  color: 'var(--color-gold-light)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ← Back to Tools
+              </button>
+            </div>
+
+            {/* Search Filter Input */}
+            <div className="input-group" style={{ marginBottom: '20px' }}>
+              <label>Search Passes</label>
+              <input 
+                type="text" 
+                placeholder="Search by Name, Phone, or ID..." 
+                value={historySearch}
+                onChange={(e) => setHistorySearch(e.target.value)}
+                style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '60vh', paddingBottom: '40px' }}>
+              {ticketsHistory
+                .filter(ticket => {
+                  const searchLower = historySearch.toLowerCase();
+                  return (
+                    ticket.guest_name?.toLowerCase().includes(searchLower) ||
+                    ticket.guest_phone?.toLowerCase().includes(searchLower) ||
+                    ticket.guest_email?.toLowerCase().includes(searchLower) ||
+                    ticket.id?.toLowerCase().includes(searchLower)
+                  );
+                })
+                .map(ticket => (
+                  <div key={ticket.id} className="glass-card history-item-card" style={{ padding: '16px', borderLeft: ticket.scanned ? '4px solid #25d366' : '4px solid rgba(228, 166, 47, 0.4)', background: 'var(--color-bg-card)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>{ticket.guest_name}</h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>{ticket.guest_phone} {ticket.guest_email ? `| ${ticket.guest_email}` : ''}</p>
+                      </div>
+                      <span 
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          background: ticket.scanned ? 'rgba(37, 211, 102, 0.15)' : 'rgba(228, 166, 47, 0.15)',
+                          color: ticket.scanned ? '#25d366' : 'var(--color-gold-main)',
+                          border: ticket.scanned ? '1px solid rgba(37, 211, 102, 0.3)' : '1px solid rgba(228, 166, 47, 0.3)'
+                        }}
+                      >
+                        {ticket.scanned ? 'Checked In' : 'Not Attended'}
+                      </span>
+                    </div>
+                    
+                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                      <span>Qty: <b style={{ color: '#fff' }}>{ticket.pax || 1} Pax</b></span>
+                      <span>Type: <b style={{ color: '#fff' }}>{ticket.is_offline ? 'Offline' : 'Online'}</b></span>
+                      <span>Event: <b style={{ color: '#fff' }}>{ticket.events?.title || 'Gig'}</b></span>
+                    </div>
+
+                    <div style={{ marginTop: '8px', fontSize: '0.6rem', color: 'rgba(255, 255, 255, 0.15)', textAlign: 'right', fontFamily: 'monospace' }}>
+                      ID: {ticket.id}
+                    </div>
+                  </div>
+                ))}
+
+              {ticketsHistory.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                  No ticket bookings found in system.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom App Navigation Bar (PWA style) */}
@@ -1880,18 +2154,11 @@ export default function AdminPage() {
           <span>Sell Counter</span>
         </button>
 
-        <button className={`tab-link ${activeTab === 'csv' ? 'active' : ''}`} onClick={() => setActiveTab('csv')}>
+        <button className={`tab-link ${['more', 'csv', 'media', 'history'].includes(activeTab) ? 'active' : ''}`} onClick={() => setActiveTab('more')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+            <path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0 12c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zM8 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5zm0-6c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10C8.67 4.5 8 5.17 8 6zm0 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5z"/>
           </svg>
-          <span>CSV Import</span>
-        </button>
-
-        <button className={`tab-link ${activeTab === 'media' ? 'active' : ''}`} onClick={() => { setActiveTab('media'); setMediaSubTab('menu'); }}>
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-          </svg>
-          <span>Media</span>
+          <span>More Tools</span>
         </button>
       </nav>
 

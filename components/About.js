@@ -35,6 +35,7 @@ const DEFAULT_MEMBERS = [
 
 export default function About() {
   const [members, setMembers] = useState(DEFAULT_MEMBERS);
+  const [showAllMembers, setShowAllMembers] = useState(false);
 
   // Fetch custom member details from database on load
   useEffect(() => {
@@ -81,6 +82,8 @@ export default function About() {
     fetchMemberImages();
   }, []);
 
+  const visibleMembers = showAllMembers ? members : members.slice(0, 3);
+
   return (
     <section id="about" className="section-padding about-section">
       {/* Biography Introduction */}
@@ -101,7 +104,7 @@ export default function About() {
         </div>
         
         <div className="members-grid">
-          {members.map((member, idx) => (
+          {visibleMembers.map((member, idx) => (
             <div key={idx} className="member-card">
               {/* Photo Box - Sharp corners */}
               <div 
@@ -117,6 +120,18 @@ export default function About() {
             </div>
           ))}
         </div>
+
+        {/* Show More / Show Less Button */}
+        {members.length > 3 && (
+          <div className="show-more-btn-container">
+            <button 
+              className="btn-show-more" 
+              onClick={() => setShowAllMembers(!showAllMembers)}
+            >
+              {showAllMembers ? 'Show Less' : 'Show More'}
+            </button>
+          </div>
+        )}
       </div>
 
       <style jsx>{`
@@ -264,7 +279,34 @@ export default function About() {
             min-width: 220px;
           }
         }
-      
+
+        .show-more-btn-container {
+          display: flex;
+          justify-content: center;
+          margin-top: 36px;
+          width: 100%;
+        }
+
+        .btn-show-more {
+          background: transparent;
+          border: 1px solid var(--color-gold-main);
+          color: var(--color-gold-main);
+          padding: 10px 24px;
+          font-family: var(--font-family-title);
+          font-size: 0.85rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          border-radius: 4px;
+          transition: var(--transition-smooth);
+        }
+
+        .btn-show-more:hover {
+          background: var(--gold-gradient);
+          color: #070709;
+          box-shadow: var(--shadow-gold-glow);
+        }
       `}</style>
     </section>
   );
