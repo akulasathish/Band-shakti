@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
+import { supabase } from '@/utils/supabaseClient';
 
 export default function Contact() {
   const [name, setName] = useState('');
@@ -8,12 +9,30 @@ export default function Contact() {
   const [message, setMessage] = useState('');
   const [inquiryType, setInquiryType] = useState('Booking');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    alert(`Thank you ${name}! Your booking inquiry has been submitted. Our team will contact you back via ${email} shortly.`);
-    setName('');
-    setEmail('');
-    setMessage('');
+    try {
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .insert([
+          { 
+            name, 
+            email, 
+            inquiry_type: inquiryType, 
+            message 
+          }
+        ]);
+
+      if (error) throw error;
+
+      alert(`Thank you ${name}! Your booking inquiry has been submitted. Our team will contact you back via ${email} shortly.`);
+      setName('');
+      setEmail('');
+      setMessage('');
+    } catch (err) {
+      console.error("Failed to submit contact inquiry:", err);
+      alert("Failed to send message: " + err.message);
+    }
   };
 
   const handleScrollToTop = () => {

@@ -33,6 +33,10 @@ export default function AdminPage() {
   const [ticketsHistory, setTicketsHistory] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
 
+  // Contact Inquiries States
+  const [inquiries, setInquiries] = useState([]);
+  const [inquirySearch, setInquirySearch] = useState('');
+
   // Counter Sell / Sticker Activator Inputs
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
@@ -309,6 +313,55 @@ export default function AdminPage() {
     }
   };
 
+  // --- CONTACT INQUIRIES INBOX ---
+  const fetchInquiries = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contact_inquiries')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      if (data) {
+        setInquiries(data);
+      }
+    } catch (err) {
+      console.error("Error fetching contact inquiries:", err);
+    }
+  };
+
+  const handleResolveInquiry = async (id, currentStatus) => {
+    try {
+      const nextStatus = currentStatus === 'PENDING' ? 'RESOLVED' : 'PENDING';
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .update({ status: nextStatus })
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchInquiries();
+    } catch (err) {
+      console.error("Failed to update inquiry status:", err);
+      alert("Error updating status: " + err.message);
+    }
+  };
+
+  const handleDeleteInquiry = async (id) => {
+    if (!confirm("Are you sure you want to delete this inquiry?")) return;
+    try {
+      const { error } = await supabase
+        .from('contact_inquiries')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      fetchInquiries();
+    } catch (err) {
+      console.error("Failed to delete inquiry:", err);
+      alert("Error deleting inquiry: " + err.message);
+    }
+  };
+
   // Sync details on tab updates
   useEffect(() => {
     if (isAuthenticated) {
@@ -318,6 +371,9 @@ export default function AdminPage() {
       fetchEventsList();
       if (activeTab === 'history') {
         fetchTicketsHistory();
+      }
+      if (activeTab === 'inquiries') {
+        fetchInquiries();
       }
     }
   }, [isAuthenticated, activeTab]);
@@ -2116,6 +2172,23 @@ export default function AdminPage() {
                   <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>Import bulk third-party booking spreadsheets directly into the gate database.</p>
                 </div>
               </div>
+
+              {/* Tool 4: Inquiries Manager */}
+              <div 
+                className="glass-card tool-link-card" 
+                onClick={() => { setActiveTab('inquiries'); fetchInquiries(); }}
+                style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', borderRadius: '12px', background: 'var(--color-bg-card)', transition: 'all 0.2s' }}
+              >
+                <div className="tool-icon" style={{ color: 'var(--color-gold-main)', background: 'rgba(228, 166, 47, 0.1)', width: '44px', height: '44px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Website Inquiries Inbox</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>View direct booking requests and customer messages submitted via the contact form.</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2210,6 +2283,111 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* TAB 8: INQUIRIES INBOX LIST */}
+        {activeTab === 'inquiries' && (
+          <div className="tab-content">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 className="tab-title" style={{ marginBottom: 0 }}>Website Inbox</h2>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('more')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(228, 166, 47, 0.3)',
+                  color: 'var(--color-gold-light)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ← Back to Tools
+              </button>
+            </div>
+
+            {/* Search Filter Input */}
+            <div className="input-group" style={{ marginBottom: '20px' }}>
+              <label>Search Messages</label>
+              <input 
+                type="text" 
+                placeholder="Search by Name, Email, or Type..." 
+                value={inquirySearch}
+                onChange={(e) => setInquirySearch(e.target.value)}
+                style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '60vh', paddingBottom: '40px' }}>
+              {inquiries
+                .filter(inq => {
+                  const searchLower = inquirySearch.toLowerCase();
+                  return (
+                    inq.name?.toLowerCase().includes(searchLower) ||
+                    inq.email?.toLowerCase().includes(searchLower) ||
+                    inq.inquiry_type?.toLowerCase().includes(searchLower) ||
+                    inq.message?.toLowerCase().includes(searchLower)
+                  );
+                })
+                .map(inq => (
+                  <div key={inq.id} className="glass-card history-item-card" style={{ padding: '16px', borderLeft: inq.status === 'RESOLVED' ? '4px solid #25d366' : '4px solid #f2ab27', background: 'var(--color-bg-card)', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>{inq.name}</h4>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>{inq.email}</p>
+                      </div>
+                      <span 
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          textTransform: 'uppercase',
+                          background: inq.status === 'RESOLVED' ? 'rgba(37, 211, 102, 0.15)' : 'rgba(242, 171, 39, 0.15)',
+                          color: inq.status === 'RESOLVED' ? '#25d366' : '#f2ab27',
+                          border: inq.status === 'RESOLVED' ? '1px solid rgba(37, 211, 102, 0.3)' : '1px solid rgba(242, 171, 39, 0.3)'
+                        }}
+                      >
+                        {inq.status === 'RESOLVED' ? 'Resolved' : 'Pending'}
+                      </span>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', marginTop: '10px', fontSize: '0.8rem', color: '#eaeaea', whiteSpace: 'pre-wrap', border: '1px solid rgba(255,255,255,0.02)' }}>
+                      <b>Type: {inq.inquiry_type}</b><br />
+                      {inq.message}
+                    </div>
+                    
+                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                      <span>Submitted: <b>{new Date(inq.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</b></span>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => handleResolveInquiry(inq.id, inq.status)}
+                          style={{ background: 'transparent', border: 'none', color: '#25d366', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.65rem' }}
+                        >
+                          {inq.status === 'RESOLVED' ? 'Mark Pending' : 'Mark Resolved'}
+                        </button>
+                        <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
+                        <button 
+                          onClick={() => handleDeleteInquiry(inq.id)}
+                          style={{ background: 'transparent', border: 'none', color: '#ff5252', cursor: 'pointer', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.65rem' }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+              {inquiries.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                  No messages in your inbox.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom App Navigation Bar (PWA style) */}
@@ -2235,7 +2413,7 @@ export default function AdminPage() {
           <span>Sell Counter</span>
         </button>
 
-        <button className={`tab-link ${['more', 'csv', 'media', 'history'].includes(activeTab) ? 'active' : ''}`} onClick={() => setActiveTab('more')}>
+        <button className={`tab-link ${['more', 'csv', 'media', 'history', 'inquiries'].includes(activeTab) ? 'active' : ''}`} onClick={() => setActiveTab('more')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
             <path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0 12c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zM8 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5zm0-6c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10C8.67 4.5 8 5.17 8 6zm0 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5z"/>
           </svg>
