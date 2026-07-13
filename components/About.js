@@ -60,6 +60,7 @@ export default function About() {
                 const meta = JSON.parse(item.description);
                 if (meta.name) name = meta.name;
                 if (meta.role) role = meta.role;
+                if (meta.bio) bio = meta.bio;
               }
             } catch (e) {}
             return {

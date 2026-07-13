@@ -199,18 +199,21 @@ export default function AdminPage() {
         setBandMembers(memberAssets.map((item, idx) => {
           let name = 'Band Member';
           let role = 'Musician';
+          let bio = 'Dedicated member of Band Shakthi.';
           try {
             if (item.description && (item.description.startsWith('{') || item.description.startsWith('['))) {
               const meta = JSON.parse(item.description);
               if (meta.name) name = meta.name;
               if (meta.role) role = meta.role;
+              if (meta.bio) bio = meta.bio;
             }
           } catch (e) {}
           return {
             id: item.id,
             url: item.url,
             name,
-            role
+            role,
+            bio
           };
         }));
       }
@@ -673,7 +676,8 @@ export default function AdminPage() {
       const defaultImageUrl = 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?q=80&w=400';
       const descriptionJson = JSON.stringify({
         name: 'New Musician',
-        role: 'Instrumentalist'
+        role: 'Instrumentalist',
+        bio: 'Dedicated member of Band Shakthi.'
       });
       
       const { error } = await supabase
@@ -695,10 +699,10 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveMemberText = async (id, name, role) => {
+  const handleSaveMemberText = async (id, name, role, bio) => {
     setIsUploading(true);
     try {
-      const descriptionJson = JSON.stringify({ name, role });
+      const descriptionJson = JSON.stringify({ name, role, bio });
       const { error } = await supabase
         .from('gallery_assets')
         .update({ description: descriptionJson })
@@ -2015,11 +2019,22 @@ export default function AdminPage() {
                               />
                             </div>
                             
+                            <div className="input-group-mini" style={{ marginTop: '6px' }}>
+                              <label>Biography</label>
+                              <textarea 
+                                className="mini-text-input"
+                                value={member.bio || ''}
+                                onChange={(e) => handleMemberTextChange(member.id, 'bio', e.target.value)}
+                                rows="3"
+                                style={{ resize: 'none', fontFamily: 'inherit', fontSize: '0.75rem', padding: '6px' }}
+                              />
+                            </div>
+                            
                             <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
                               <button 
                                 type="button" 
                                 className="btn-outline btn-mini-act" 
-                                onClick={() => handleSaveMemberText(member.id, member.name, member.role)}
+                                onClick={() => handleSaveMemberText(member.id, member.name, member.role, member.bio)}
                                 disabled={isUploading}
                               >
                                 Save Text
