@@ -74,7 +74,13 @@ export default function AdminPage() {
     totalTicketsSold: 0,
     revenue: '₹0',
     checkedIn: 0,
-    capacity: 400
+    capacity: 400,
+    onlineTicketsSold: 0,
+    onlineCheckedIn: 0,
+    onlineRevenue: '₹0',
+    offlineTicketsSold: 0,
+    offlineCheckedIn: 0,
+    offlineRevenue: '₹0'
   });
 
   // 1. Real Login Authenticator
@@ -212,19 +218,31 @@ export default function AdminPage() {
   // 5. Fetch live statistics from database tickets table
   const fetchStats = async () => {
     try {
-      // Get the currently active event ID
+      // Get the currently active event ID and details
       const { data: actEvent } = await supabase
         .from('events')
-        .select('id, total_capacity')
+        .select('id, total_capacity, ticket_price')
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
 
       const eventId = actEvent ? actEvent.id : null;
       const capacity = actEvent ? actEvent.total_capacity : 400;
+      const ticketPrice = actEvent && actEvent.ticket_price ? actEvent.ticket_price : 500;
 
       if (!eventId) {
-        setDbStats({ totalTicketsSold: 0, revenue: '₹0', checkedIn: 0, capacity: 400 });
+        setDbStats({
+          totalTicketsSold: 0,
+          revenue: '₹0',
+          checkedIn: 0,
+          capacity: 400,
+          onlineTicketsSold: 0,
+          onlineCheckedIn: 0,
+          onlineRevenue: '₹0',
+          offlineTicketsSold: 0,
+          offlineCheckedIn: 0,
+          offlineRevenue: '₹0'
+        });
         return;
       }
 
@@ -238,18 +256,35 @@ export default function AdminPage() {
 
       if (data) {
         const paidTickets = data.filter(t => t.status === 'PAID');
+        
+        // Combined Totals
         const totalPaxSold = paidTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
         const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
-        
-        const revenueAmount = paidTickets.reduce((sum, t) => {
-          return sum + ((t.pax || 1) * 500);
-        }, 0);
-        
+        const revenueAmount = paidTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
+
+        // Online Breakdown (is_offline is false or null)
+        const onlineTickets = paidTickets.filter(t => !t.is_offline);
+        const onlineTicketsSold = onlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
+        const onlineCheckedIn = onlineTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        const onlineRevenueAmount = onlineTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
+
+        // Offline Breakdown (is_offline is true)
+        const offlineTickets = paidTickets.filter(t => t.is_offline);
+        const offlineTicketsSold = offlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
+        const offlineCheckedIn = offlineTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        const offlineRevenueAmount = offlineTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
+
         setDbStats({
           totalTicketsSold: totalPaxSold,
           revenue: `₹${revenueAmount.toLocaleString('en-IN')}`,
           checkedIn: checkedInCount,
-          capacity: capacity
+          capacity: capacity,
+          onlineTicketsSold,
+          onlineCheckedIn,
+          onlineRevenue: `₹${onlineRevenueAmount.toLocaleString('en-IN')}`,
+          offlineTicketsSold,
+          offlineCheckedIn,
+          offlineRevenue: `₹${offlineRevenueAmount.toLocaleString('en-IN')}`
         });
       }
     } catch (err) {
@@ -1114,6 +1149,52 @@ export default function AdminPage() {
                   </span>
                 </div>
               </div>
+            </div>
+
+            {/* Sales Channel Breakdown */}
+            <h3 style={{ fontSize: '0.85rem', color: 'var(--color-gold-light)', margin: '24px 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>Sales Breakdown</h3>
+            <div className="breakdown-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '24px' }}>
+              
+              {/* Online Channel */}
+              <div className="glass-card channel-box" style={{ padding: '14px', borderLeft: '3px solid #3b82f6', background: 'var(--color-bg-card)', borderRadius: '8px' }}>
+                <h4 style={{ color: '#3b82f6', fontSize: '0.8rem', fontWeight: 800, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Online Channel</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Sold:</span>
+                    <span style={{ color: '#fff', fontWeight: 'bold' }}>{dbStats.onlineTicketsSold} Pax</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Attended:</span>
+                    <span style={{ color: '#25d366', fontWeight: 'bold' }}>{dbStats.onlineCheckedIn} Pax</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '6px', marginTop: '4px' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Revenue:</span>
+                    <span style={{ color: 'var(--color-gold-light)', fontWeight: 'bold' }}>{dbStats.onlineRevenue}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Offline Channel */}
+              <div className="glass-card channel-box" style={{ padding: '14px', borderLeft: '3px solid var(--color-gold-main)', background: 'var(--color-bg-card)', borderRadius: '8px' }}>
+                <h4 style={{ color: 'var(--color-gold-main)', fontSize: '0.8rem', fontWeight: 800, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Offline Counter</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Sold:</span>
+                    <span style={{ color: '#fff', fontWeight: 'bold' }}>{dbStats.offlineTicketsSold} Pax</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Attended:</span>
+                    <span style={{ color: '#25d366', fontWeight: 'bold' }}>{dbStats.offlineCheckedIn} Pax</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', borderTop: '1px dashed rgba(255,255,255,0.08)', paddingTop: '6px', marginTop: '4px' }}>
+                    <span style={{ color: 'var(--color-text-muted)' }}>Revenue:</span>
+                    <span style={{ color: 'var(--color-gold-light)', fontWeight: 'bold' }}>{dbStats.offlineRevenue}</span>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
             {/* Quick Actions */}
