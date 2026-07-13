@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
 import { supabase } from '@/utils/supabaseClient';
 
 export default function AdminPage() {
@@ -397,26 +396,31 @@ export default function AdminPage() {
         if (!checkEl) return;
 
         try {
-          const html5QrCode = new Html5Qrcode(elementId);
-          html5QrCodeRef.current = html5QrCode;
-          setIsScanning(true);
+          // Dynamically import the scanner library to bypass server-side rendering crashes
+          import('html5-qrcode').then(({ Html5Qrcode }) => {
+            const html5QrCode = new Html5Qrcode(elementId);
+            html5QrCodeRef.current = html5QrCode;
+            setIsScanning(true);
 
-          html5QrCode.start(
-            { facingMode: "environment" }, // back camera
-            {
-              fps: 10,
-              qrbox: { width: 250, height: 250 }
-            },
-            (decodedText) => {
-              handleScanSuccess(decodedText);
-            },
-            (errorMessage) => {
-              // verbose logs ignored
-            }
-          ).catch(err => {
-            console.error("Camera start failed:", err);
-            setScanError("Failed to access camera: " + err.message);
-            setIsScanning(false);
+            html5QrCode.start(
+              { facingMode: "environment" }, // back camera
+              {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+              },
+              (decodedText) => {
+                handleScanSuccess(decodedText);
+              },
+              (errorMessage) => {
+                // verbose logs ignored
+              }
+            ).catch(err => {
+              console.error("Camera start failed:", err);
+              setScanError("Failed to access camera: " + err.message);
+              setIsScanning(false);
+            });
+          }).catch(err => {
+            console.error("Failed to load html5-qrcode dynamically:", err);
           });
         } catch (e) {
           console.error("Scanner setup failed:", e);
