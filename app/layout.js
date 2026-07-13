@@ -32,6 +32,17 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${montserrat.variable} ${outfit.variable}`}>
       <head>
         <link rel="icon" href="/favicon.ico" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (window.location.pathname === '/' && localStorage.getItem('admin_authenticated') === 'true') {
+                  window.location.replace('/admin');
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
       </head>
       <body>
         <StyledJsxRegistry>{children}</StyledJsxRegistry>

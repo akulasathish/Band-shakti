@@ -536,3 +536,32 @@ textarea {
   }
 }
 
+@media (max-width: 480px) {
+  .logo-wrapper {
+    max-width: 160px;
+  }
+  .logo-img {
+    width: 100% !important;
+    height: auto !important;
+  }
+  .nav-container {
+    padding: 8px 12px;
+  }
+  .ticket-cta-btn span {
+    display: none;
+  }
+  .ticket-cta-btn {
+    padding: 8px !important;
+    border-radius: 50% !important;
+    aspect-ratio: 1;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .nav-actions {
+    gap: 8px;
+  }
+}
+

@@ -92,8 +92,25 @@ export default function Booking() {
   // Connects with Supabase to insert a real checkout record
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
-    if (!name || !email || !phone) {
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!name.trim() || !trimmedEmail || !trimmedPhone) {
       alert("Please fill in all buyer details.");
+      return;
+    }
+
+    // Email regex validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    // Phone length validation (at least 10 digits)
+    const phoneDigits = trimmedPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      alert("Please enter a valid 10-digit contact number.");
       return;
     }
 
@@ -103,9 +120,9 @@ export default function Booking() {
         .from('tickets')
         .insert({
           event_id: activeEvent.id,
-          buyer_name: name,
-          buyer_email: email,
-          buyer_phone: phone,
+          buyer_name: name.trim(),
+          buyer_email: trimmedEmail,
+          buyer_phone: trimmedPhone,
           ticket_type: 'ONLINE',
           pax: totalTickets,
           status: 'PAID', // Bypassing payments, automatically marked as paid
@@ -420,7 +437,7 @@ export default function Booking() {
           width: 100%;
           max-width: 480px;
           height: 100vh;
-          background: rgba(7, 7, 9, 0.85);
+          background: transparent;
           z-index: 250;
           display: flex;
           align-items: flex-end;

@@ -1,11 +1,17 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
 import { supabase } from '@/utils/supabaseClient';
 
-export default function AdminPage() {
+function AdminPageContent() {
   // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('admin_authenticated') === 'true';
+    }
+    return false;
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -17,6 +23,24 @@ export default function AdminPage() {
       }
     }
   }, []);
+
+  // Lock browser history to /admin, preventing hardware back button exits
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Push state immediately on mount
+    window.history.pushState(null, document.title, window.location.href);
+
+    const handlePopState = (e) => {
+      // Re-push state to block back navigation
+      window.history.pushState(null, document.title, window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
   
   // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'more' | 'csv' | 'media' | 'history'
   const [activeTab, setActiveTab] = useState('stats');
@@ -26,11 +50,14 @@ export default function AdminPage() {
   const [scanResult, setScanResult] = useState(null);
   const [scanError, setScanError] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [checkInCount, setCheckInCount] = useState(1);
   const html5QrCodeRef = useRef(null);
 
   // Tickets & Passes History States
   const [ticketsHistory, setTicketsHistory] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
+  const [expandedTicketId, setExpandedTicketId] = useState(null);
+  const [showPastEvents, setShowPastEvents] = useState(false);
 
   // Contact Inquiries States
   const [inquiries, setInquiries] = useState([]);
@@ -925,29 +952,30 @@ export default function AdminPage() {
           return;
         }
 
-        if (ticket.scanned) {
+        // Calculate remaining balance for this pass
+        const totalPax = ticket.pax || 1;
+        const currentScanned = ticket.scanned_pax || 0;
+        const remaining = totalPax - currentScanned;
+
+        if (remaining <= 0) {
           const scanTime = ticket.scanned_at ? new Date(ticket.scanned_at).toLocaleTimeString() : 'earlier';
           setScanResult({
             status: 'DENIED',
-            message: `TICKET ALREADY SCANNED AT ${scanTime}! Duplicate entry denied.`,
+            message: `TICKET FULLY CHECKED IN AT ${scanTime}! All ${totalPax} guests already entered. Duplicate entry denied.`,
             buyer: ticket.buyer_name,
-            pax: ticket.pax || 1,
+            pax: totalPax,
             event: ticket.events?.title || 'Concert Live Show'
           });
         } else {
-          const nowStr = new Date().toISOString();
-          const { error: updateError } = await supabase
-            .from('tickets')
-            .update({ scanned: true, scanned_at: nowStr })
-            .eq('id', ticketId);
-
-          if (updateError) throw updateError;
-
+          // Trigger the Partial Entry confirmation selector
+          setCheckInCount(remaining); // default entry selection to remaining balance
           setScanResult({
-            status: 'GRANTED',
-            message: 'ACCESS GRANTED! Welcome to the show.',
+            status: 'PARTIAL_ENTRY_PROMPT',
+            ticketId: ticket.id,
             buyer: ticket.buyer_name,
-            pax: ticket.pax || 1,
+            totalPax,
+            scannedPax: currentScanned,
+            remaining,
             event: ticket.events?.title || 'Concert Live Show'
           });
         }
@@ -963,6 +991,60 @@ export default function AdminPage() {
         status: 'DENIED',
         message: 'DATABASE ERROR: ' + err.message,
         buyer: 'Query Failed'
+      });
+    }
+  };
+
+  // Process the partial entry check-in confirmation
+  const handleConfirmPartialEntry = async (ticketId, selectedCount) => {
+    try {
+      // 1. Fetch current checked-in count first to prevent race conditions
+      const { data: ticket, error: fetchErr } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('id', ticketId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const totalPax = ticket.pax || 1;
+      const prevScanned = ticket.scanned_pax || 0;
+      const newScanned = prevScanned + selectedCount;
+      const isFullyScanned = newScanned >= totalPax;
+
+      const updateData = {
+        scanned_pax: newScanned
+      };
+
+      if (isFullyScanned) {
+        updateData.scanned = true;
+        updateData.scanned_at = new Date().toISOString();
+      }
+
+      const { error: updateErr } = await supabase
+        .from('tickets')
+        .update(updateData)
+        .eq('id', ticketId);
+
+      if (updateErr) throw updateErr;
+
+      setScanResult({
+        status: 'GRANTED',
+        message: isFullyScanned 
+          ? `ACCESS GRANTED for remaining ${selectedCount} guest(s)! All ${totalPax} check-in complete.`
+          : `ACCESS GRANTED for ${selectedCount} guest(s)! ${totalPax - newScanned} guests remaining on this pass.`,
+        buyer: ticket.buyer_name,
+        pax: totalPax,
+        scannedPax: newScanned,
+        event: 'Concert Live Show'
+      });
+      fetchStats();
+    } catch (err) {
+      console.error("Verification processing failed:", err);
+      setScanResult({
+        status: 'DENIED',
+        message: 'DATABASE ERROR: ' + err.message,
+        buyer: 'Update Failed'
       });
     }
   };
@@ -1366,62 +1448,182 @@ export default function AdminPage() {
 
               {/* Scheduled Events List */}
               <div className="events-list-stack" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>All Scheduled Shows ({eventsList.length}):</span>
-                {eventsList.length === 0 ? (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0 }}>No other events scheduled. Click "+ New Event" to create one!</p>
-                ) : (
-                  eventsList.map((evt) => (
-                    <div 
-                      key={evt.id} 
-                      style={{ 
-                        background: evt.is_active ? 'rgba(228, 166, 47, 0.05)' : 'rgba(0,0,0,0.15)', 
-                        border: evt.is_active ? '1px solid rgba(228, 166, 47, 0.2)' : '1px solid rgba(255,255,255,0.05)', 
-                        padding: '10px', 
-                        borderRadius: '6px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1, paddingRight: '10px' }}>
-                          <h6 style={{ fontSize: '0.8rem', margin: 0, color: evt.is_active ? 'var(--color-gold-light)' : '#fff' }}>{evt.title}</h6>
-                          <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', margin: '2px 0 0 0' }}>
-                            📅 {new Date(evt.event_date).toLocaleDateString()} | 📍 {evt.venue}
-                          </p>
-                          <p style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', margin: 0 }}>
-                            🎫 ₹{evt.ticket_price} | Capacity: {evt.total_capacity}
-                          </p>
-                        </div>
+                {(() => {
+                  const now = new Date();
+                  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+                  
+                  // Filter events into Upcoming and Past
+                  const upcomingEvents = eventsList.filter(evt => {
+                    const evtTime = new Date(evt.event_date).getTime();
+                    return evtTime >= today || evt.is_active;
+                  });
+                  
+                  const pastEvents = eventsList.filter(evt => {
+                    const evtTime = new Date(evt.event_date).getTime();
+                    return evtTime < today && !evt.is_active;
+                  });
 
-                        {!evt.is_active && (
-                          <button 
-                            type="button" 
-                            className="btn-gold" 
-                            style={{ fontSize: '0.6rem', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}
-                            onClick={() => handleSetActiveEvent(evt.id)}
-                            disabled={isUploading}
-                          >
-                            Set Active
-                          </button>
-                        )}
-                      </div>
+                  return (
+                    <>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
+                        Upcoming & Active Shows ({upcomingEvents.length}):
+                      </span>
 
-                      {!evt.is_active && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px dashed rgba(255,255,255,0.03)', paddingTop: '4px' }}>
-                          <button 
-                            type="button" 
-                            style={{ background: 'transparent', border: 'none', color: '#ff5252', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
-                            onClick={() => handleDeleteEvent(evt.id)}
-                            disabled={isUploading}
+                      {upcomingEvents.length === 0 ? (
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontStyle: 'italic', margin: 0 }}>
+                          No upcoming shows scheduled.
+                        </p>
+                      ) : (
+                        upcomingEvents.map((evt) => (
+                          <div 
+                            key={evt.id} 
+                            style={{ 
+                              background: evt.is_active ? 'rgba(228, 166, 47, 0.05)' : 'rgba(255,255,255,0.02)', 
+                              border: evt.is_active ? '1px solid rgba(228, 166, 47, 0.25)' : '1px solid rgba(255,255,255,0.05)', 
+                              padding: '12px', 
+                              borderRadius: '8px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px'
+                            }}
                           >
-                            Delete Event
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1, paddingRight: '10px' }}>
+                                <h6 style={{ fontSize: '0.85rem', margin: 0, color: evt.is_active ? 'var(--color-gold-light)' : '#fff', fontWeight: 600 }}>{evt.title}</h6>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
+                                  📅 {new Date(evt.event_date).toLocaleDateString('en-IN', { dateStyle: 'medium' })} | 📍 {evt.venue}
+                                </p>
+                                <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: 0 }}>
+                                  🎫 ₹{evt.ticket_price} | Capacity: {evt.total_capacity}
+                                </p>
+                              </div>
+
+                              {!evt.is_active && (
+                                <button 
+                                  type="button" 
+                                  className="btn-gold" 
+                                  style={{ fontSize: '0.65rem', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}
+                                  onClick={() => handleSetActiveEvent(evt.id)}
+                                  disabled={isUploading}
+                                >
+                                  Set Active
+                                </button>
+                              )}
+                            </div>
+
+                            {!evt.is_active && (
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px dashed rgba(255,255,255,0.04)', paddingTop: '6px', marginTop: '2px' }}>
+                                <button 
+                                  type="button" 
+                                  style={{ background: 'transparent', border: 'none', color: '#ff5252', fontSize: '0.65rem', cursor: 'pointer', padding: 0 }}
+                                  onClick={() => handleDeleteEvent(evt.id)}
+                                  disabled={isUploading}
+                                >
+                                  Delete Event
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+
+                      {/* Past Shows Section (Collapsible & Scrollable Container) */}
+                      {pastEvents.length > 0 && (
+                        <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowPastEvents(!showPastEvents)}
+                            style={{
+                              width: '100%',
+                              padding: '8px 12px',
+                              background: 'rgba(255,255,255,0.02)',
+                              border: '1px solid rgba(255,255,255,0.05)',
+                              color: 'var(--color-text-muted)',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            <span>📁 Archive / Past Shows ({pastEvents.length})</span>
+                            <span style={{ fontSize: '0.6rem' }}>{showPastEvents ? '▼ Hide' : '► Show'}</span>
                           </button>
+
+                          {showPastEvents && (
+                            <div 
+                              style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: '8px', 
+                                marginTop: '10px', 
+                                maxHeight: '200px', 
+                                overflowY: 'auto',
+                                paddingRight: '4px',
+                                border: '1px solid rgba(255,255,255,0.03)',
+                                borderRadius: '6px',
+                                padding: '8px',
+                                background: 'rgba(0,0,0,0.1)'
+                              }}
+                            >
+                              {pastEvents.map((evt) => (
+                                <div 
+                                  key={evt.id} 
+                                  style={{ 
+                                    background: 'rgba(255,255,255,0.01)', 
+                                    border: '1px solid rgba(255,255,255,0.02)', 
+                                    padding: '8px', 
+                                    borderRadius: '4px',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                  }}
+                                >
+                                  <div style={{ flex: 1, paddingRight: '10px' }}>
+                                    <h6 style={{ fontSize: '0.75rem', margin: 0, color: '#aaa', textDecoration: 'line-through' }}>{evt.title}</h6>
+                                    <p style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', margin: '2px 0 0 0' }}>
+                                      📅 {new Date(evt.event_date).toLocaleDateString()} | 📍 {evt.venue}
+                                    </p>
+                                  </div>
+                                  
+                                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                    <button 
+                                      type="button" 
+                                      style={{ 
+                                        background: 'transparent', 
+                                        border: '1px solid rgba(228, 166, 47, 0.2)', 
+                                        color: 'var(--color-gold-light)', 
+                                        fontSize: '0.55rem', 
+                                        padding: '2px 6px', 
+                                        borderRadius: '3px',
+                                        cursor: 'pointer'
+                                      }}
+                                      onClick={() => handleSetActiveEvent(evt.id)}
+                                      disabled={isUploading}
+                                    >
+                                      Re-activate
+                                    </button>
+                                    <button 
+                                      type="button" 
+                                      style={{ background: 'transparent', border: 'none', color: '#ff5252', fontSize: '0.55rem', cursor: 'pointer', padding: 0 }}
+                                      onClick={() => handleDeleteEvent(evt.id)}
+                                      disabled={isUploading}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  ))
-                )}
+                    </>
+                  );
+                })()}
               </div>
 
             </div>
@@ -1479,7 +1681,61 @@ export default function AdminPage() {
             )}
 
             {/* Scanner Results Overlay */}
-            {scanResult && (
+            {scanResult && scanResult.status === 'PARTIAL_ENTRY_PROMPT' && (
+              <div className="scan-result-card result-prompt" style={{ border: '1px solid rgba(228, 166, 47, 0.4)', background: 'var(--color-bg-card)', padding: '20px', borderRadius: '12px', textAlign: 'center', marginTop: '16px' }}>
+                <h3 style={{ color: 'var(--color-gold-main)', fontSize: '1.2rem', marginBottom: '8px' }}>⚡ PARTIAL CHECK-IN</h3>
+                <p className="result-msg" style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '16px' }}>
+                  Please select how many guests are entering right now.
+                </p>
+                
+                <div className="result-details" style={{ textAlign: 'left', background: 'rgba(0,0,0,0.2)', padding: '12px', borderRadius: '8px', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.85rem' }}>
+                  <p><b>Guest Name:</b> {scanResult.buyer}</p>
+                  <p><b>Total Pass Capacity:</b> {scanResult.totalPax} Person(s)</p>
+                  <p><b>Already Checked In:</b> <span style={{ color: '#25d366', fontWeight: 'bold' }}>{scanResult.scannedPax}</span></p>
+                  <p><b>Remaining Balance:</b> <span style={{ color: 'var(--color-gold-main)', fontWeight: 'bold' }}>{scanResult.remaining}</span></p>
+                </div>
+
+                {/* Counter Selector */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '20px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => setCheckInCount(prev => Math.max(1, prev - 1))}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(228, 166, 47, 0.3)', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    -
+                  </button>
+                  <span style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#fff', minWidth: '40px', textAlign: 'center' }}>
+                    {checkInCount}
+                  </span>
+                  <button 
+                    type="button"
+                    onClick={() => setCheckInCount(prev => Math.min(scanResult.remaining, prev + 1))}
+                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(228, 166, 47, 0.3)', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', fontSize: '1.2rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button 
+                    className="btn-gold" 
+                    onClick={() => handleConfirmPartialEntry(scanResult.ticketId, checkInCount)}
+                    style={{ width: '100%', padding: '12px', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    Confirm Entry of {checkInCount} Guest(s)
+                  </button>
+                  <button 
+                    className="btn-outline" 
+                    onClick={() => setScanResult(null)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', cursor: 'pointer' }}
+                  >
+                    Cancel Scan
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {scanResult && scanResult.status !== 'PARTIAL_ENTRY_PROMPT' && (
               <div className={`scan-result-card ${scanResult.status === 'GRANTED' ? 'result-success' : 'result-fail'}`}>
                 <h3>{scanResult.status === 'GRANTED' ? '✓ ACCESS GRANTED' : '✗ ACCESS DENIED'}</h3>
                 <p className="result-msg">{scanResult.message}</p>
@@ -1489,6 +1745,11 @@ export default function AdminPage() {
                   {scanResult.pax && (
                     <p style={{ color: 'var(--color-gold-main)', fontWeight: 'bold' }}>
                       <b>Allowed Pax:</b> {scanResult.pax} Person(s)
+                    </p>
+                  )}
+                  {scanResult.scannedPax !== undefined && (
+                    <p style={{ color: '#25d366', fontWeight: 'bold' }}>
+                      <b>Total Checked In:</b> {scanResult.scannedPax} Person(s)
                     </p>
                   )}
                   {scanResult.event && <p><b>Event:</b> {scanResult.event}</p>}
@@ -1862,21 +2123,6 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-            )}
-
-            {/* Sub-tab Views */}
-            {mediaSubTab !== 'menu' && (
-              <button 
-                type="button" 
-                className="btn-outline" 
-                style={{ fontSize: '0.75rem', padding: '6px 12px', width: 'fit-content', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px', borderRadius: '6px' }}
-                onClick={() => setMediaSubTab('menu')}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-                Back to Media Menu
-              </button>
             )}
 
             <div className="media-forms">
@@ -2253,46 +2499,128 @@ export default function AdminPage() {
                 .filter(ticket => {
                   const searchLower = historySearch.toLowerCase();
                   return (
-                    ticket.guest_name?.toLowerCase().includes(searchLower) ||
-                    ticket.guest_phone?.toLowerCase().includes(searchLower) ||
-                    ticket.guest_email?.toLowerCase().includes(searchLower) ||
+                    ticket.buyer_name?.toLowerCase().includes(searchLower) ||
+                    ticket.buyer_phone?.toLowerCase().includes(searchLower) ||
+                    ticket.buyer_email?.toLowerCase().includes(searchLower) ||
                     ticket.id?.toLowerCase().includes(searchLower)
                   );
                 })
-                .map(ticket => (
-                  <div key={ticket.id} className="glass-card history-item-card" style={{ padding: '16px', borderLeft: ticket.scanned ? '4px solid #25d366' : '4px solid rgba(228, 166, 47, 0.4)', background: 'var(--color-bg-card)', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 700, margin: 0 }}>{ticket.guest_name}</h4>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px', margin: 0 }}>{ticket.guest_phone} {ticket.guest_email ? `| ${ticket.guest_email}` : ''}</p>
-                      </div>
-                      <span 
-                        style={{
-                          fontSize: '0.65rem',
-                          fontWeight: 700,
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          textTransform: 'uppercase',
-                          background: ticket.scanned ? 'rgba(37, 211, 102, 0.15)' : 'rgba(228, 166, 47, 0.15)',
-                          color: ticket.scanned ? '#25d366' : 'var(--color-gold-main)',
-                          border: ticket.scanned ? '1px solid rgba(37, 211, 102, 0.3)' : '1px solid rgba(228, 166, 47, 0.3)'
-                        }}
-                      >
-                        {ticket.scanned ? 'Checked In' : 'Not Attended'}
-                      </span>
-                    </div>
-                    
-                    <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                      <span>Qty: <b style={{ color: '#fff' }}>{ticket.pax || 1} Pax</b></span>
-                      <span>Type: <b style={{ color: '#fff' }}>{ticket.is_offline ? 'Offline' : 'Online'}</b></span>
-                      <span>Event: <b style={{ color: '#fff' }}>{ticket.events?.title || 'Gig'}</b></span>
-                    </div>
+                .map(ticket => {
+                  const isExpanded = expandedTicketId === ticket.id;
+                  const totalPax = ticket.pax || 1;
+                  const scannedPax = ticket.scanned_pax || 0;
+                  const remaining = totalPax - scannedPax;
 
-                    <div style={{ marginTop: '8px', fontSize: '0.6rem', color: 'rgba(255, 255, 255, 0.15)', textAlign: 'right', fontFamily: 'monospace' }}>
-                      ID: {ticket.id}
+                  // Render visual status badge text based on scanned pax count
+                  let attendanceBadgeText = 'Not Attended';
+                  let badgeBg = 'rgba(228, 166, 47, 0.15)';
+                  let badgeColor = 'var(--color-gold-main)';
+                  let badgeBorder = '1px solid rgba(228, 166, 47, 0.3)';
+
+                  if (ticket.scanned) {
+                    attendanceBadgeText = 'Checked In';
+                    badgeBg = 'rgba(37, 211, 102, 0.15)';
+                    badgeColor = '#25d366';
+                    badgeBorder = '1px solid rgba(37, 211, 102, 0.3)';
+                  } else if (scannedPax > 0) {
+                    attendanceBadgeText = `Partially In (${scannedPax}/${totalPax})`;
+                    badgeBg = 'rgba(0, 180, 216, 0.15)';
+                    badgeColor = '#00b4d8';
+                    badgeBorder = '1px solid rgba(0, 180, 216, 0.3)';
+                  }
+
+                  return (
+                    <div 
+                      key={ticket.id} 
+                      className="glass-card history-item-card" 
+                      onClick={() => setExpandedTicketId(isExpanded ? null : ticket.id)}
+                      style={{ 
+                        padding: '16px', 
+                        borderLeft: ticket.scanned ? '4px solid #25d366' : scannedPax > 0 ? '4px solid #00b4d8' : '4px solid rgba(228, 166, 47, 0.4)', 
+                        background: 'var(--color-bg-card)', 
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease-in-out'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{ticket.buyer_name || 'Guest'}</h4>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
+                            Click card to show full details
+                          </span>
+                        </div>
+                        <span 
+                          style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            background: badgeBg,
+                            color: badgeColor,
+                            border: badgeBorder
+                          }}
+                        >
+                          {attendanceBadgeText}
+                        </span>
+                      </div>
+                      
+                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                        <span>Qty: <b style={{ color: '#fff' }}>{totalPax} Pax</b></span>
+                        <span>Type: <b style={{ color: '#fff' }}>{ticket.is_offline ? 'Offline' : 'Online'}</b></span>
+                        <span>Event: <b style={{ color: '#fff' }}>{ticket.events?.title || 'Concert Live'}</b></span>
+                      </div>
+
+                      {/* Collapsible Accordion Drawer Details */}
+                      {isExpanded && (
+                        <div 
+                          className="accordion-content"
+                          style={{ 
+                            marginTop: '14px', 
+                            paddingTop: '14px', 
+                            borderTop: '1px solid rgba(255,255,255,0.06)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px',
+                            fontSize: '0.8rem',
+                            color: 'var(--color-text-muted)',
+                            animation: 'fadeIn 0.2s ease-in'
+                          }}
+                          onClick={(e) => e.stopPropagation()} // prevent double-closing when clicking details text
+                        >
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>📧 Email Address:</span>{' '}
+                            <span style={{ color: '#fff' }}>{ticket.buyer_email || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>📞 Contact Number:</span>{' '}
+                            <span style={{ color: '#fff' }}>{ticket.buyer_phone || 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>⏱️ Ticket Created:</span>{' '}
+                            <span style={{ color: '#fff' }}>
+                              {ticket.created_at ? new Date(ticket.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>✅ Checked-In Pax:</span>{' '}
+                            <span style={{ color: '#fff' }}>{scannedPax} entered ({remaining} remaining)</span>
+                          </div>
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>⏰ Last Check-in Time:</span>{' '}
+                            <span style={{ color: '#fff' }}>
+                              {ticket.scanned_at ? new Date(ticket.scanned_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}
+                            </span>
+                          </div>
+                          <div style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.65rem', marginTop: '6px', color: 'rgba(255,255,255,0.15)' }}>
+                            Ticket ID: {ticket.id}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
               {ticketsHistory.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
@@ -3167,3 +3495,9 @@ export default function AdminPage() {
     </main>
   );
 }
+
+const AdminPage = dynamic(() => Promise.resolve(AdminPageContent), {
+  ssr: false
+});
+
+export default AdminPage;
