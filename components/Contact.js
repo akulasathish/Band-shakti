@@ -142,9 +142,9 @@ export default function Contact() {
               ></textarea>
             </div>
 
-            <button type="submit" className="btn-gold submit-contact-btn">
-              Send Message
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <button type="submit" className="submit-contact-btn">
+              SEND MESSAGE
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: 'rotate(-45deg)', marginLeft: '2px' }}>
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
               </svg>
@@ -309,8 +309,12 @@ export default function Contact() {
         }
 
         .contact-card {
-          padding: 24px 20px;
+          padding: 30px 24px;
           margin-bottom: 40px;
+          background: #0d0d12;
+          border: 1px solid rgba(228, 166, 47, 0.2);
+          border-radius: 12px;
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
         }
 
         .contact-form {
@@ -331,20 +335,24 @@ export default function Contact() {
           font-size: 0.75rem;
           font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
+          letter-spacing: 0.08em;
           color: var(--color-gold-light);
         }
 
         .input-group input, .select-input, textarea {
-          background: var(--color-bg-input);
-          border: 1px solid rgba(228, 166, 47, 0.15);
+          background: #121218;
+          border: 1px solid rgba(255, 255, 255, 0.08);
           color: #ffffff;
           border-radius: 8px;
-          padding: 12px;
+          padding: 14px 16px;
           font-size: 0.9rem;
           outline: none;
           font-family: var(--font-family-sans);
           transition: var(--transition-smooth);
+        }
+
+        .input-group input::placeholder, textarea::placeholder {
+          color: rgba(255, 255, 255, 0.35);
         }
 
         .select-input option {
@@ -353,8 +361,9 @@ export default function Contact() {
         }
 
         .input-group input:focus, .select-input:focus, textarea:focus {
-          border-color: var(--color-gold-main);
-          box-shadow: 0 0 10px rgba(228, 166, 47, 0.1);
+          border-color: rgba(228, 166, 47, 0.5);
+          box-shadow: 0 0 8px rgba(228, 166, 47, 0.15);
+          background: #14141d;
         }
 
         textarea {
@@ -364,6 +373,28 @@ export default function Contact() {
         .submit-contact-btn {
           width: 100%;
           margin-top: 8px;
+          background: var(--gold-gradient);
+          color: #070709;
+          border: none;
+          border-radius: 50px;
+          height: 48px;
+          font-family: var(--font-family-title);
+          font-size: 0.85rem;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: var(--transition-smooth);
+          box-shadow: 0 4px 15px rgba(228, 166, 47, 0.2);
+        }
+
+        .submit-contact-btn:hover {
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-gold-glow);
         }
 
         /* Floating WhatsApp Button */
