@@ -91,10 +91,13 @@ export default function About() {
       <div className="about-wrapper">
         <h2 className="section-title">About the Band</h2>
         <p className="about-text">
-          Born out of a shared passion for high-energy music, <span className="highlight-gold">Band Shakthi</span> has been electrifying crowd venues across the country. We specialize in explosive live sets that blend classical elements with hard rock, pop, and fusion rhythms.
+          <span className="highlight-gold">Band Shakthi</span> is a vibrant musical group based in Hyderabad, celebrated for its electrifying performances that seamlessly blend Tollywood and Bollywood music. Formed by a collective of passionate musicians, the band has quickly established itself as a standout act in the regional music scene. Their shows are a dynamic mix of classic hits, contemporary anthems, and innovative mashups that resonate with audiences of all ages.
         </p>
         <p className="about-text">
-          Whether we are playing in packed pubs, outdoor arenas, or private corporate gatherings, our goal remains the same: <span className="highlight-red">To ignite the stage and deliver an unforgettable musical run.</span>
+          What makes Band Shakthi truly special is their ability to <span className="highlight-gold">connect deeply with their audience</span>, whether through a soulful ballad or an energetic dance number. Their versatility in covering a wide range of genres from Tollywood and Bollywood to rock, pop, and fusion makes them a preferred choice for events of all kinds, from intimate gatherings to large festivals.
+        </p>
+        <p className="about-text">
+          The synergy among the band members is evident in every performance, with each musician bringing their <span className="highlight-red">unique flair and expertise to the stage.</span> Band Shakthi's innovative approach to music, particularly their fresh takes on classic songs, has earned them a loyal following and critical acclaim.
         </p>
       </div>
 

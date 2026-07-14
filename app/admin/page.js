@@ -6,22 +6,18 @@ import { supabase } from '@/utils/supabaseClient';
 
 function AdminPageContent() {
   // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('admin_authenticated') === 'true';
-    }
-    return false;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   // Hydration-safe persistent authentication check
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (localStorage.getItem('admin_authenticated') === 'true') {
-        setIsAuthenticated(true);
-      }
+      const isAuth = localStorage.getItem('admin_authenticated') === 'true';
+      setIsAuthenticated(isAuth);
     }
+    setIsAuthLoading(false);
   }, []);
 
   // Lock browser history to /admin, preventing hardware back button exits
@@ -84,6 +80,16 @@ function AdminPageContent() {
   const [newEventVenue, setNewEventVenue] = useState('');
   const [newEventPrice, setNewEventPrice] = useState('500');
   const [newEventCapacity, setNewEventCapacity] = useState('400');
+
+  // --- PAST EVENTS LOGGER STATES ---
+  const [showCreatePastEventForm, setShowCreatePastEventForm] = useState(false);
+  const [pastEventTitle, setPastEventTitle] = useState('');
+  const [pastEventDate, setPastEventDate] = useState('');
+  const [pastEventVenue, setPastEventVenue] = useState('');
+  const [pastEventDescription, setPastEventDescription] = useState('');
+  const [pastEventCapacity, setPastEventCapacity] = useState('500');
+  const [pastEventPrice, setPastEventPrice] = useState('400');
+  const [selectedPastEventId, setSelectedPastEventId] = useState(null);
 
   // --- SUB-NAVIGATION MEDIA TAB STATE ---
   const [mediaSubTab, setMediaSubTab] = useState('menu'); // 'menu' | 'banners' | 'members' | 'gallery'
@@ -443,7 +449,8 @@ function AdminPageContent() {
               }
             ).catch(err => {
               console.error("Camera start failed:", err);
-              setScanError("Failed to access camera: " + err.message);
+              const errMsg = err?.message || err || "Browser secure context is required. Note that mobile browsers strictly block camera access over insecure HTTP connections (e.g. your local Wi-Fi IP address 192.168.*). To test the camera on a physical phone, you must run it over localhost, HTTPS, or set up a secure proxy tunnel (like Ngrok).";
+              setScanError("Failed to access camera: " + errMsg);
               setIsScanning(false);
             });
           }).catch(err => {
@@ -519,6 +526,118 @@ function AdminPageContent() {
     } catch (err) {
       console.error("Failed to schedule event:", err);
       alert("Failed to create event: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // --- PAST EVENTS LOGGER ACTIONS ---
+  const handleCreatePastEvent = async (e) => {
+    e.preventDefault();
+    if (!pastEventTitle || !pastEventDate || !pastEventVenue) {
+      alert("Please fill in event Title, Date, and Venue.");
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const { error } = await supabase
+        .from('events')
+        .insert({
+          title: pastEventTitle,
+          event_date: new Date(pastEventDate).toISOString(),
+          venue: pastEventVenue,
+          description: pastEventDescription || '',
+          ticket_price: parseFloat(pastEventPrice) || 400,
+          total_capacity: parseInt(pastEventCapacity) || 500,
+          is_active: false
+        });
+
+      if (error) throw error;
+
+      alert('Past event logged successfully! You can now upload photo/video assets for this gig.');
+      setPastEventTitle('');
+      setPastEventDate('');
+      setPastEventVenue('');
+      setPastEventDescription('');
+      setPastEventPrice('400');
+      setPastEventCapacity('500');
+      setShowCreatePastEventForm(false);
+      fetchEventsList();
+    } catch (err) {
+      console.error("Failed to log past event:", err);
+      alert("Failed to create past event: " + err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadPastEventMedia = async (e, eventId) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileExt = file.name.split('.').pop();
+        const fileType = file.type.startsWith('video/') ? 'VIDEO' : 'IMAGE';
+        const fileName = `gallery_${Math.random().toString(36).substring(2, 12)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('gallery')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('gallery')
+          .getPublicUrl(filePath);
+
+        const { error: dbError } = await supabase
+          .from('gallery_assets')
+          .insert({
+            type: fileType,
+            url: urlData.publicUrl,
+            description: file.name,
+            event_id: eventId
+          });
+
+        if (dbError) throw dbError;
+      }
+
+      alert('Media assets uploaded and linked to this gig successfully!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Past event media upload failed:", err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeletePastEventMedia = async (assetId, assetUrl) => {
+    if (!confirm('Are you sure you want to delete this media asset?')) return;
+    setIsUploading(true);
+    try {
+      if (assetUrl.includes('/storage/v1/object/public/gallery/')) {
+        const fileName = assetUrl.split('/').pop();
+        await supabase.storage.from('gallery').remove([fileName]);
+      }
+      
+      const { error } = await supabase
+        .from('gallery_assets')
+        .delete()
+        .eq('id', assetId);
+
+      if (error) throw error;
+      alert('Media asset deleted!');
+      fetchGalleryImages();
+    } catch (err) {
+      console.error("Failed to delete asset:", err);
+      alert("Delete failed: " + err.message);
     } finally {
       setIsUploading(false);
     }
@@ -1123,6 +1242,20 @@ function AdminPageContent() {
     if (inputEl) inputEl.value = '';
   };
 
+  if (isAuthLoading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#070709', color: 'var(--color-gold-light)' }}>
+        <span className="spinner-mini" style={{ width: '40px', height: '40px', border: '3px solid rgba(228, 166, 47, 0.1)', borderTopColor: 'var(--color-gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+        <p style={{ marginTop: '16px', fontSize: '0.85rem', letterSpacing: '0.05em' }}>VERIFYING CREDENTIALS...</p>
+        <style jsx>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   // --- LOGIN SCREEN ---
   if (!isAuthenticated) {
     return (
@@ -1134,7 +1267,7 @@ function AdminPageContent() {
             width={200} 
             height={70} 
             priority
-            className="logo-img"
+            className="login-logo-img"
           />
         </div>
         
@@ -1239,23 +1372,9 @@ function AdminPageContent() {
     <main className="admin-mobile-container admin-app">
       {/* App Header */}
       <header className="admin-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Image src="/logo.png" alt="Logo" width={200} height={69} className="logo-img" style={{ objectFit: 'contain' }} />
-          <span className="badge-pwa">ADMIN APP</span>
-        </div>
-        <button 
-          onClick={handleLogout} 
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--color-red-accent)',
-            fontSize: '0.75rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em'
-          }}
-        >
+        <Image src="/logo.png" alt="Logo" width={90} height={31} className="header-logo-img" />
+        <span className="badge-pwa">ADMIN APP</span>
+        <button onClick={handleLogout} className="logout-btn">
           Logout
         </button>
       </header>
@@ -2419,6 +2538,28 @@ function AdminPageContent() {
                 </div>
               </div>
 
+              {/* Tool 2.5: Past Gigs Logger */}
+              <div 
+                className="glass-card tool-link-card" 
+                onClick={() => { setActiveTab('past_events'); }}
+                style={{ padding: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', borderRadius: '12px', background: 'var(--color-bg-card)', transition: 'all 0.2s' }}
+              >
+                <div className="tool-icon" style={{ color: 'var(--color-gold-main)', background: 'rgba(228, 166, 47, 0.1)', width: '44px', height: '44px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="16" y1="2" x2="16" y2="6"></line>
+                    <line x1="8" y1="2" x2="8" y2="6"></line>
+                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                    <path d="M12 14v4"></path>
+                    <path d="M10 16h4"></path>
+                  </svg>
+                </div>
+                <div>
+                  <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>Past Gigs & Media Logger</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>Log historical band concerts, and upload/post photos and videos directly for those gigs.</p>
+                </div>
+              </div>
+
               {/* Tool 3: CSV Importer */}
               <div 
                 className="glass-card tool-link-card" 
@@ -2461,24 +2602,26 @@ function AdminPageContent() {
         {/* TAB 7: TICKETS & ATTENDANCE HISTORY LIST */}
         {activeTab === 'history' && (
           <div className="tab-content">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h2 className="tab-title" style={{ marginBottom: 0 }}>Tickets History</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid rgba(228,166,47,0.1)', paddingBottom: '12px' }}>
+              <h2 className="tab-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#fff' }}>Passes Log</h2>
               <button 
                 type="button" 
                 onClick={() => setActiveTab('more')}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
+                  background: 'rgba(228, 166, 47, 0.08)',
                   border: '1px solid rgba(228, 166, 47, 0.3)',
                   color: 'var(--color-gold-light)',
                   padding: '6px 12px',
-                  borderRadius: '6px',
-                  fontSize: '0.75rem',
+                  borderRadius: '20px',
+                  fontSize: '0.7rem',
                   fontWeight: 700,
                   cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
                   transition: 'all 0.2s'
                 }}
               >
-                ← Back to Tools
+                ← Tools
               </button>
             </div>
 
@@ -2566,10 +2709,19 @@ function AdminPageContent() {
                         </span>
                       </div>
                       
-                      <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                        <span>Qty: <b style={{ color: '#fff' }}>{totalPax} Pax</b></span>
-                        <span>Type: <b style={{ color: '#fff' }}>{ticket.is_offline ? 'Offline' : 'Online'}</b></span>
-                        <span>Event: <b style={{ color: '#fff' }}>{ticket.events?.title || 'Concert Live'}</b></span>
+                      <div style={{ 
+                        marginTop: '12px', 
+                        display: 'grid', 
+                        gridTemplateColumns: '1fr 1fr', 
+                        gap: '8px', 
+                        fontSize: '0.75rem', 
+                        color: 'var(--color-text-muted)',
+                        borderTop: '1px solid rgba(255, 255, 255, 0.04)',
+                        paddingTop: '10px'
+                      }}>
+                        <div>Qty: <b style={{ color: '#fff' }}>{totalPax} Pax</b></div>
+                        <div>Type: <b style={{ color: '#fff' }}>{ticket.ticket_type === 'OFFLINE_GUEST' || ticket.is_offline ? 'Offline' : 'Online'}</b></div>
+                        <div style={{ gridColumn: 'span 2', marginTop: '2px' }}>Event: <b style={{ color: 'var(--color-gold-light)', fontWeight: 500 }}>{ticket.events?.title || 'Concert Live'}</b></div>
                       </div>
 
                       {/* Collapsible Accordion Drawer Details */}
@@ -2735,6 +2887,293 @@ function AdminPageContent() {
             </div>
           </div>
         )}
+
+        {/* TAB 9: PAST EVENTS LOGGER AND ASSET MANAGER */}
+        {activeTab === 'past_events' && (
+          <div className="tab-content">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h2 className="tab-title" style={{ marginBottom: 0 }}>Past Gigs Manager</h2>
+              <button 
+                type="button" 
+                onClick={() => setActiveTab('more')}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(228, 166, 47, 0.3)',
+                  color: 'var(--color-gold-light)',
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                ← Back to Tools
+              </button>
+            </div>
+
+            <p className="tab-desc" style={{ marginBottom: '20px' }}>Log historical band gigs, and upload/post videos and images directly for those events.</p>
+
+            <button 
+              type="button" 
+              className="btn-gold" 
+              style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '24px', textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              onClick={() => setShowCreatePastEventForm(!showCreatePastEventForm)}
+            >
+              {showCreatePastEventForm ? 'Cancel New Log' : '+ Log Historical Gig'}
+            </button>
+
+            {/* Create Past Event Form */}
+            {showCreatePastEventForm && (
+              <form onSubmit={handleCreatePastEvent} className="glass-card" style={{ padding: '20px', border: '1px solid rgba(228, 166, 47, 0.25)', borderRadius: '12px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '14px', background: 'var(--color-bg-card)' }}>
+                <h3 style={{ color: 'var(--color-gold-light)', margin: '0 0 4px 0', fontSize: '1.05rem', fontWeight: 700 }}>Log Historical Gig</h3>
+                
+                <div className="input-group-mini">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Gig/Concert Title</label>
+                  <input 
+                    type="text" 
+                    className="mini-text-input" 
+                    placeholder="e.g. Band Shakthi Live — Hard Rock Cafe" 
+                    value={pastEventTitle} 
+                    onChange={(e) => setPastEventTitle(e.target.value)} 
+                    style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                    required
+                  />
+                </div>
+                
+                <div className="input-group-mini">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Gig Date & Time</label>
+                  <input 
+                    type="datetime-local" 
+                    className="mini-text-input" 
+                    value={pastEventDate} 
+                    onChange={(e) => setPastEventDate(e.target.value)} 
+                    style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                    required
+                  />
+                </div>
+
+                <div className="input-group-mini">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Venue Location</label>
+                  <input 
+                    type="text" 
+                    className="mini-text-input" 
+                    placeholder="e.g. Hard Rock Cafe, St. Mark's Road" 
+                    value={pastEventVenue} 
+                    onChange={(e) => setPastEventVenue(e.target.value)} 
+                    style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                    required
+                  />
+                </div>
+
+                <div className="input-group-mini">
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Gig Description / Highlights</label>
+                  <textarea 
+                    placeholder="e.g. Sold out fusion show. High energy violinist run of 20 mins. Played for 600+ guests..." 
+                    value={pastEventDescription} 
+                    onChange={(e) => setPastEventDescription(e.target.value)} 
+                    rows={3}
+                    style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem', resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div className="input-group-mini" style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Estimated Crowd/Capacity</label>
+                    <input 
+                      type="number" 
+                      className="mini-text-input" 
+                      value={pastEventCapacity} 
+                      onChange={(e) => setPastEventCapacity(e.target.value)} 
+                      style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                      required
+                    />
+                  </div>
+                  <div className="input-group-mini" style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>Ticket Price (₹)</label>
+                    <input 
+                      type="number" 
+                      className="mini-text-input" 
+                      value={pastEventPrice} 
+                      onChange={(e) => setPastEventPrice(e.target.value)} 
+                      style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn-gold" 
+                  disabled={isUploading}
+                  style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: 'bold', marginTop: '6px' }}
+                >
+                  {isUploading ? 'Logging Gig...' : 'Confirm & Log Gig'}
+                </button>
+              </form>
+            )}
+
+            {/* List of past events */}
+            <h3 style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '8px' }}>Gigs History Grid</h3>
+            <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '55vh', overflowY: 'auto', paddingBottom: '40px' }}>
+              {eventsList
+                .filter(e => !e.is_active)
+                .map(event => {
+                  const eventDate = new Date(event.event_date);
+                  const isExpanded = selectedPastEventId === event.id;
+                  const linkedAssets = galleryImages.filter(img => img.event_id === event.id);
+
+                  return (
+                    <div key={event.id} className="glass-card" style={{ padding: '18px', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', background: 'var(--color-bg-card)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h4 style={{ color: '#fff', fontSize: '1rem', fontWeight: 700, margin: 0 }}>{event.title}</h4>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-gold-light)', marginTop: '4px', margin: 0 }}>📍 {event.venue}</p>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '4px', margin: 0 }}>
+                            📅 {eventDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <span 
+                          style={{
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            textTransform: 'uppercase',
+                            background: 'rgba(255, 255, 255, 0.05)',
+                            color: '#aaa',
+                            border: '1px solid rgba(255, 255, 255, 0.1)'
+                          }}
+                        >
+                          Completed
+                        </span>
+                      </div>
+
+                      {event.description && (
+                        <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', background: 'rgba(0,0,0,0.15)', padding: '8px 10px', borderRadius: '6px', margin: '12px 0 0 0', border: '1px solid rgba(255,255,255,0.02)', fontStyle: 'italic' }}>
+                          {event.description}
+                        </p>
+                      )}
+
+                      <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>
+                          Media: <b>{linkedAssets.length} file(s)</b> linked
+                        </span>
+                        
+                        <button 
+                          onClick={() => setSelectedPastEventId(isExpanded ? null : event.id)}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--color-gold-main)',
+                            cursor: 'pointer',
+                            fontWeight: 700,
+                            fontSize: '0.75rem',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.02em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          {isExpanded ? 'Hide Media Panel ▲' : 'Manage Media Panel ▼'}
+                        </button>
+                      </div>
+
+                      {/* Expandable Media management section for this past event */}
+                      {isExpanded && (
+                        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed rgba(228, 166, 47, 0.15)' }}>
+                          <h5 style={{ color: 'var(--color-gold-light)', margin: '0 0 10px 0', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                            Linked Photos & Videos
+                          </h5>
+
+                          {/* Media asset grid */}
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '14px' }}>
+                            {linkedAssets.map(asset => (
+                              <div key={asset.id} className="admin-gallery-item" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                                {asset.type === 'VIDEO' ? (
+                                  <div style={{ width: '100%', aspectRatio: '1', borderRadius: '6px', border: 'var(--border-glass)', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+                                    <svg viewBox="0 0 24 24" width="24" height="24" fill="var(--color-gold-main)">
+                                      <path d="M8 5v14l11-7z"/>
+                                    </svg>
+                                    <span style={{ position: 'absolute', bottom: '2px', left: '2px', fontSize: '0.5rem', color: '#fff', background: 'rgba(0,0,0,0.6)', padding: '1px 3px', borderRadius: '2px' }}>VIDEO</span>
+                                  </div>
+                                ) : (
+                                  <div 
+                                    className="admin-gallery-thumb" 
+                                    style={{ backgroundImage: `url(${asset.url})` }}
+                                  />
+                                )}
+                                <button 
+                                  onClick={() => handleDeletePastEventMedia(asset.id, asset.url)}
+                                  className="btn-delete-img"
+                                  title="Delete Media"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
+                          {linkedAssets.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '16px', background: 'rgba(0,0,0,0.2)', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '14px', fontStyle: 'italic' }}>
+                              No photos/videos uploaded for this gig yet.
+                            </div>
+                          )}
+
+                          {/* File input to upload past event photos/videos */}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#fff', textTransform: 'uppercase' }}>Upload Photos / Videos</label>
+                            <input 
+                              type="file" 
+                              accept="image/*,video/*"
+                              multiple 
+                              onChange={(e) => handleUploadPastEventMedia(e, event.id)}
+                              disabled={isUploading}
+                              style={{ display: 'none' }}
+                              id={`past-upload-${event.id}`}
+                            />
+                            <label 
+                              htmlFor={`past-upload-${event.id}`}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                background: 'rgba(228, 166, 47, 0.05)',
+                                border: '1px dashed var(--color-gold-main)',
+                                color: 'var(--color-gold-light)',
+                                padding: '12px',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                transition: 'all 0.2s',
+                                textAlign: 'center'
+                              }}
+                            >
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                              </svg>
+                              <span>{isUploading ? 'Uploading assets...' : 'Select Files to Upload'}</span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+              {eventsList.filter(e => !e.is_active).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                  No historical gigs logged in system yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom App Navigation Bar (PWA style) */}
@@ -2760,7 +3199,7 @@ function AdminPageContent() {
           <span>Sell Counter</span>
         </button>
 
-        <button className={`tab-link ${['more', 'csv', 'media', 'history', 'inquiries'].includes(activeTab) ? 'active' : ''}`} onClick={() => setActiveTab('more')}>
+        <button className={`tab-link ${['more', 'csv', 'media', 'history', 'inquiries', 'past_events'].includes(activeTab) ? 'active' : ''}`} onClick={() => setActiveTab('more')}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
             <path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0 12c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zM8 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5zm0-6c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10C8.67 4.5 8 5.17 8 6zm0 12c0 .83.67 1.5 1.5 1.5h10c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5h-10c-.83 0-1.5.67-1.5 1.5z"/>
           </svg>
@@ -2777,30 +3216,70 @@ function AdminPageContent() {
           position: relative;
         }
 
-        .admin-header {
+         .admin-header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 12px 16px;
+          padding: 0 16px;
           height: 60px;
-          border-bottom: 1px solid rgba(228, 166, 47, 0.1);
-          background-color: rgba(18, 18, 24, 0.5);
+          border-bottom: 1px solid rgba(228, 166, 47, 0.15);
+          background-color: #070709;
+          position: sticky;
+          top: 0;
+          z-index: 1000;
         }
 
-        .logo-img {
+         .logo-img {
+          height: 30px;
+          width: auto;
           object-fit: contain;
         }
 
+        .header-logo-img {
+          height: 21px !important;
+          width: auto !important;
+          max-width: 80px;
+          object-fit: contain;
+          display: block;
+        }
+
+        .login-logo-img {
+          height: auto !important;
+          max-height: 56px;
+          width: auto !important;
+          object-fit: contain;
+          display: block;
+          margin: 0 auto;
+        }
+
         .badge-pwa {
-          background: rgba(228, 166, 47, 0.15);
+          background: rgba(228, 166, 47, 0.08);
           border: 1px solid rgba(228, 166, 47, 0.3);
           color: var(--color-gold-light);
           font-family: var(--font-family-title);
-          font-size: 0.65rem;
+          font-size: 0.6rem;
           font-weight: 700;
           letter-spacing: 0.05em;
-          padding: 3px 8px;
+          padding: 2px 8px;
           border-radius: 4px;
+          text-transform: uppercase;
+        }
+
+        .logout-btn {
+          background: transparent;
+          border: none;
+          color: #ff3333;
+          font-size: 0.65rem;
+          font-weight: 700;
+          cursor: pointer;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          transition: var(--transition-smooth);
+        }
+
+        .logout-btn:hover {
+          color: #ff6666;
+          opacity: 0.9;
         }
 
         .admin-body {

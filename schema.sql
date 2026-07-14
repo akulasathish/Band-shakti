@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   status VARCHAR(50) DEFAULT 'PENDING',    -- 'PENDING', 'PAID', 'CANCELLED', 'PENDING_ACTIVATION', 'ACTIVE'
   payment_id VARCHAR(255),                  -- Instamojo Payment ID
   payment_request_id VARCHAR(255),          -- Instamojo Payment Request ID
+  pax INTEGER DEFAULT 1,                    -- Number of guests allowed on this ticket
   scanned BOOLEAN DEFAULT false,
+  scanned_pax INTEGER DEFAULT 0,            -- Number of guests checked in so far
   scanned_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
