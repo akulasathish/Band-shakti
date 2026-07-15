@@ -46,7 +46,8 @@ export async function POST(request) {
 
       if (dbErr) throw dbErr;
 
-      const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
+      const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://www.bandshakthi.com';
+      const websiteUrl = origin;
       const mockPayUrl = `${websiteUrl}/api/payment/verify?payment_request_id=${ticket.payment_request_id}&payment_id=MOJO_MOCK_${Date.now()}`;
 
       return NextResponse.json({ 
@@ -57,7 +58,8 @@ export async function POST(request) {
     }
 
     // Call real Instamojo API to generate secure payment request
-    const websiteUrl = process.env.WEBSITE_URL || 'http://localhost:3000';
+    const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://www.bandshakthi.com';
+    const websiteUrl = origin;
     const redirectUrl = `${websiteUrl}/api/payment/verify`;
 
     const formData = new URLSearchParams();
