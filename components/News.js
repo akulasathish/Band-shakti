@@ -9,7 +9,7 @@ const NEWS_POSTS = [
   },
   {
     date: 'June 28, 2026',
-    title: 'Jam Arena Mumbai Show Sold Out!',
+    title: 'Grand Mumbai Live Concert Sold Out!',
     desc: 'Thank you Mumbai! Tickets for our stadium gig sold out within 4 hours. Stay tuned for behind-the-scenes concert footage.',
     tag: 'SOLD OUT'
   }

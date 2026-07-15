@@ -230,7 +230,7 @@ export default function Contact() {
         </div>
 
         <p className="footer-copyright">© 2026 BAND SHAKTHI. ALL RIGHTS RESERVED.</p>
-        <p className="footer-credit">JAM ARENA PRODUCTION</p>
+        <p className="footer-credit">BAND SHAKTHI OFFICIAL</p>
       </footer>
 
       <style jsx>{`

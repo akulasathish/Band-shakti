@@ -19,7 +19,7 @@ export async function GET(request) {
   const ticketId = searchParams.get('id') || '';
 
   // 1. Core Event details fallback values
-  let eventTitle = 'Band Shakthi Live — Jam Arena Show';
+  let eventTitle = 'Band Shakthi Live Concert';
   let eventVenue = 'The DownTown Pub, Ground Stage';
   let eventDateText = 'Next Friday | 8:00 PM Onwards';
 
@@ -242,7 +242,7 @@ export async function GET(request) {
     });
 
     // Branding Footer
-    page.drawText('JAM ARENA PRODUCTIONS © 2026', {
+    page.drawText('BAND SHAKTHI OFFICIAL © 2026', {
       x: 120,
       y: 40,
       size: 8,

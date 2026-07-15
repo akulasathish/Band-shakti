@@ -70,7 +70,7 @@ export async function GET(request) {
         payment_id: paymentId
       })
       .eq('payment_request_id', paymentRequestParamId)
-      .select('id, buyer_name, buyer_email, buyer_phone, pax')
+      .select('id, buyer_name, buyer_email, buyer_phone, pax, events(title, venue, event_date)')
       .single();
 
     if (dbErr || !ticket) {
@@ -83,8 +83,49 @@ export async function GET(request) {
     // 3. Render gorgeous responsive success confirmation landing page with automatic PDF download trigger script
     const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(ticket.buyer_name)}&email=${encodeURIComponent(ticket.buyer_email)}&phone=${encodeURIComponent(ticket.buyer_phone)}&qty=${ticket.pax}&id=${ticket.id}`;
     
-    const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://band-shakti.netlify.app';
+    const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://bandshakthi.com';
     const absoluteDownloadUrl = `${origin}${downloadUrl}`;
+
+    // Trigger automatic background email pass delivery for online checkout
+    if (ticket && ticket.buyer_email) {
+      let eventTitle = 'Band Shakthi Live Concert';
+      let eventVenue = 'The DownTown Pub, Ground Stage';
+      let eventDateText = 'Next Event';
+
+      if (ticket.events) {
+        eventTitle = ticket.events.title || eventTitle;
+        eventVenue = ticket.events.venue || eventVenue;
+        
+        try {
+          const dateObj = new Date(ticket.events.event_date);
+          eventDateText = dateObj.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          }) + ' Onwards';
+        } catch (dateErr) {
+          eventDateText = ticket.events.event_date || eventDateText;
+        }
+      }
+
+      const emailEndpoint = `${origin}/api/booking/email`;
+      fetch(emailEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          name: ticket.buyer_name,
+          email: ticket.buyer_email,
+          phone: ticket.buyer_phone || '00000 00000',
+          qty: ticket.pax,
+          eventTitle,
+          eventVenue,
+          eventDate: eventDateText
+        })
+      }).catch(err => console.error("[Online Checkout] Background email delivery failed:", err));
+    }
     const whatsappText = `Hi Band Shakthi! I just booked live tickets.%0A%0A👤 Holder: ${encodeURIComponent(ticket.buyer_name)}%0A🎟️ Pax: ${ticket.pax} Pass(es)%0A🆔 Ticket ID: ${ticket.id}%0A%0A🔗 Download Link:%0A${encodeURIComponent(absoluteDownloadUrl)}`;
     const whatsappUrl = `https://wa.me/918897963589?text=${whatsappText}`;
 

@@ -95,7 +95,7 @@ export default function RefundsPage() {
               3. Event Postponement or Cancellation
             </h2>
             <p>
-              In the extremely rare event that a live concert is officially postponed or cancelled by the artist, venue, or the management team (Jam Arena Production) due to technical failure, severe weather, or force majeure:
+              In the extremely rare event that a live concert is officially postponed or cancelled by the artist, venue, or the management team (Band Shakthi) due to technical failure, severe weather, or force majeure:
             </p>
             <ul style={{ paddingLeft: '20px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <li><strong>In case of Postponement:</strong> Your booked ticket pass remains valid and will automatically roll over to the newly scheduled date of the event. No action is required from your end.</li>
@@ -108,7 +108,7 @@ export default function RefundsPage() {
               4. Transfer of Tickets
             </h2>
             <p>
-              Tickets are strictly bound to the name entered during checkout. However, if you are unable to attend the show, you may transfer your Entry Pass PDF to a friend or family member. The physical person presenting the pass at the check-in gate with the valid QR code will be granted entry. Once a ticket QR code is scanned at the gate, it is instantly deactivated and cannot be reused.
+              Tickets are strictly bound to the name entered during checkout. However, if you are unable to attend the show, you may transfer your Entry Pass (digital QR or physical ticket) to a friend or family member. The physical person presenting the pass at the check-in gate with the valid QR code will be granted entry. Once a ticket QR code is scanned at the gate, it is instantly deactivated and cannot be reused.
             </p>
           </section>
 

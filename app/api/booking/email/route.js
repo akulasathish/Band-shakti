@@ -17,7 +17,7 @@ export async function POST(request) {
     const user = process.env.EMAIL_USER;
     const pass = process.env.EMAIL_PASS;
     const from = process.env.EMAIL_FROM || 'booking@bandshakti.com';
-    const websiteUrl = process.env.WEBSITE_URL || 'https://band-shakti.netlify.app';
+    const websiteUrl = process.env.WEBSITE_URL || 'https://bandshakthi.com';
 
     const ticketDownloadUrl = `${websiteUrl}/api/booking/ticket?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}&qty=${qty}&id=${ticketId}`;
 

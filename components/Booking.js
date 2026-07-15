@@ -17,7 +17,7 @@ export default function Booking() {
 
   const [activeEvent, setActiveEvent] = useState({
     id: null,
-    title: 'Band Shakthi Live — Jam Arena Show',
+    title: 'Band Shakthi Live Concert',
     date: 'Next Friday | 8:00 PM onwards',
     venue: 'The DownTown Pub, Ground Stage'
   });

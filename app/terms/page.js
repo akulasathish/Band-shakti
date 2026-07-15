@@ -72,7 +72,7 @@ export default function TermsPage() {
               1. Acceptance of Terms
             </h2>
             <p>
-              By accessing, browsing, or booking tickets through the official Band Shakthi website (https://band-shakti.netlify.app or custom domain), you agree to comply with and be bound by the following Terms & Conditions. If you disagree with any part of these terms, please do not use this service.
+              By accessing, browsing, or booking tickets through the official Band Shakthi website (https://bandshakthi.com), you agree to comply with and be bound by the following Terms & Conditions. If you disagree with any part of these terms, please do not use this service.
             </p>
           </section>
 
@@ -81,7 +81,7 @@ export default function TermsPage() {
               2. Ticket Purchasing & Verification
             </h2>
             <p>
-              Tickets can only be booked online through our integrated payment processor (Instamojo) or registered offline at our counter through authorized personnel. Each completed transaction generates a unique Ticket ID and PDF pass. You must ensure that the name, email, and phone number entered during booking are accurate.
+              Tickets can be booked online through our secure payment gateway or issued offline at our authorized event counters. Each completed booking (whether processed online or offline) generates a unique Ticket ID and an official entry pass. You must ensure that the name, email, and phone number entered during registration are accurate.
             </p>
           </section>
 
@@ -103,7 +103,7 @@ export default function TermsPage() {
               4. Secure Check-In
             </h2>
             <p>
-              At the gate, your unique PDF Pass QR code will be scanned by our digital scanners. Once successfully scanned, the ticket state is updated to checked-in inside our databases and instantly deactivated. Any secondary scan attempts will result in an ACCESS DENIED screen.
+              At the gate, your unique Entry Pass QR code (digital or physical) will be scanned by our digital scanners. Once successfully scanned, the ticket state is updated to checked-in inside our databases and instantly deactivated. Any secondary scan attempts will result in an ACCESS DENIED screen.
             </p>
           </section>
 
@@ -112,7 +112,7 @@ export default function TermsPage() {
               5. Intellectual Property
             </h2>
             <p>
-              All website graphics, logos, photos, video reels, sound clips, and software structures on this website are the sole intellectual property of Band Shakthi and Jam Arena Production. Unauthorized duplication or scraping is strictly prohibited.
+              All website graphics, logos, photos, video reels, sound clips, and software structures on this website are the sole intellectual property of Band Shakthi. Unauthorized duplication or scraping is strictly prohibited.
             </p>
           </section>
 
