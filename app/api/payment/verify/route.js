@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -505,7 +506,8 @@ async function sendPassEmail({ ticketId, name, email, phone, qty, eventTitle, ev
       </div>
     `;
 
-    const nodemailer = require('nodemailer');
+
+
     const transporter = nodemailer.createTransport({
       host,
       port,

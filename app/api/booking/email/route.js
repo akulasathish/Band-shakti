@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import nodemailer from 'nodemailer';
 
 export async function POST(request) {
   try {
@@ -57,19 +58,6 @@ export async function POST(request) {
         success: true, 
         simulated: true, 
         message: 'Email parameters omitted. Fallback simulator logged success payload successfully.' 
-      });
-    }
-
-    // Dynamic Nodemailer import to protect static bundle size and prevent compilation errors
-    let nodemailer;
-    try {
-      nodemailer = require('nodemailer');
-    } catch (importErr) {
-      console.warn("[Email Dispatcher] Nodemailer is not installed. Automated fallback triggered.");
-      return NextResponse.json({ 
-        success: true, 
-        simulated: true, 
-        message: 'Nodemailer dependency missing. Fallback simulator logged success payload successfully.' 
       });
     }
 

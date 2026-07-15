@@ -81,6 +81,7 @@ function AdminPageContent() {
   const [newEventVenue, setNewEventVenue] = useState('');
   const [newEventPrice, setNewEventPrice] = useState('500');
   const [newEventCapacity, setNewEventCapacity] = useState('400');
+  const [newEventTerms, setNewEventTerms] = useState('1. Please carry a valid physical photo ID.\n2. Tickets are strictly non-refundable.\n3. The venue reserves the right of admission.');
 
   // --- PAST EVENTS LOGGER STATES ---
   const [showCreatePastEventForm, setShowCreatePastEventForm] = useState(false);
@@ -464,19 +465,37 @@ function AdminPageContent() {
 
       return () => {
         clearTimeout(timer);
-        if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-          html5QrCodeRef.current.stop().then(() => {
+        if (html5QrCodeRef.current) {
+          try {
+            html5QrCodeRef.current.stop().then(() => {
+              setIsScanning(false);
+              html5QrCodeRef.current = null;
+            }).catch(err => {
+              console.warn("Safe cleanup stop:", err);
+              setIsScanning(false);
+              html5QrCodeRef.current = null;
+            });
+          } catch (e) {
             setIsScanning(false);
             html5QrCodeRef.current = null;
-          }).catch(err => console.error("Error stopping camera on unmount:", err));
+          }
         }
       };
     } else {
-      if (html5QrCodeRef.current && html5QrCodeRef.current.isScanning) {
-        html5QrCodeRef.current.stop().then(() => {
+      if (html5QrCodeRef.current) {
+        try {
+          html5QrCodeRef.current.stop().then(() => {
+            setIsScanning(false);
+            html5QrCodeRef.current = null;
+          }).catch(err => {
+            console.warn("Safe switch stop:", err);
+            setIsScanning(false);
+            html5QrCodeRef.current = null;
+          });
+        } catch (e) {
           setIsScanning(false);
           html5QrCodeRef.current = null;
-        }).catch(err => console.error("Error stopping camera:", err));
+        }
       }
     }
   }, [activeTab, isAuthenticated, scanResult, activationResult]);
@@ -511,6 +530,7 @@ function AdminPageContent() {
           venue: newEventVenue,
           ticket_price: parseFloat(newEventPrice) || 500,
           total_capacity: parseInt(newEventCapacity) || 400,
+          terms: newEventTerms,
           is_active: false
         });
 
@@ -522,6 +542,7 @@ function AdminPageContent() {
       setNewEventVenue('');
       setNewEventPrice('500');
       setNewEventCapacity('400');
+      setNewEventTerms('1. Please carry a valid physical photo ID.\n2. Tickets are strictly non-refundable.\n3. The venue reserves the right of admission.');
       setShowCreateEventForm(false);
       fetchEventsList();
     } catch (err) {
@@ -1617,6 +1638,17 @@ function AdminPageContent() {
                     </div>
                   </div>
 
+                  <div className="input-group-mini">
+                    <label>Terms & Conditions (One rule per line)</label>
+                    <textarea 
+                      className="mini-text-input" 
+                      style={{ minHeight: '80px', resize: 'vertical', width: '100%', fontFamily: 'inherit', fontSize: '0.8rem', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(228, 166, 47, 0.25)', color: '#fff', padding: '10px', borderRadius: '6px' }}
+                      placeholder="e.g.&#10;1. Carry valid physical photo ID.&#10;2. Entry restricted below age 18.&#10;3. Tickets are non-refundable." 
+                      value={newEventTerms} 
+                      onChange={(e) => setNewEventTerms(e.target.value)} 
+                    />
+                  </div>
+
                   <button type="submit" className="btn-gold" style={{ fontSize: '0.75rem', padding: '6px 12px', borderRadius: '6px', width: '100%', marginTop: '6px' }}>
                     Schedule Concert Gig
                   </button>
@@ -1833,6 +1865,56 @@ function AdminPageContent() {
                 </div>
               )}
             </div>
+
+            {/* Manual Ticket ID Verification */}
+            {!scanResult && (
+              <div className="glass-card" style={{ padding: '20px', marginTop: '16px', border: '1px solid rgba(228, 166, 47, 0.15)', background: 'rgba(255,255,255,0.01)', borderRadius: '12px' }}>
+                <h4 style={{ color: 'var(--color-gold-main)', fontSize: '0.9rem', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🔑 Manual Ticket Verification
+                </h4>
+                <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', marginBottom: '12px', lineHeight: '1.4' }}>
+                  If the camera is unavailable or the guest's QR code is damaged, enter their Ticket ID manually:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    id="manual-ticket-id-input" 
+                    placeholder="Enter 36-char Ticket ID (UUID)" 
+                    style={{ 
+                      background: 'rgba(0, 0, 0, 0.4)', 
+                      border: '1px solid rgba(228, 166, 47, 0.25)', 
+                      padding: '12px 14px', 
+                      borderRadius: '8px', 
+                      color: '#fff', 
+                      fontSize: '0.85rem', 
+                      width: '100%',
+                      outline: 'none',
+                      fontFamily: 'monospace'
+                    }} 
+                  />
+                  <button 
+                    type="button"
+                    className="btn-outline" 
+                    onClick={() => handleSimulateScanInput('manual-ticket-id-input')}
+                    style={{ 
+                      width: '100%', 
+                      padding: '12px', 
+                      background: 'linear-gradient(135deg, #e4a62f 0%, #b37d14 100%)', 
+                      border: 'none', 
+                      color: '#070709', 
+                      fontWeight: 'bold', 
+                      borderRadius: '8px', 
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}
+                  >
+                    Verify & Check-In
+                  </button>
+                </div>
+              </div>
+            )}
 
 
 

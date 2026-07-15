@@ -22,19 +22,21 @@ export async function GET(request) {
   let eventTitle = 'Band Shakthi Live Concert';
   let eventVenue = 'The DownTown Pub, Ground Stage';
   let eventDateText = 'Next Friday | 8:00 PM Onwards';
+  let eventTermsText = '';
 
   try {
     // 2. Query database to pull exact event details for this specific ticket
     if (ticketId && supabaseUrl) {
       const { data: ticketRecord, error: dbErr } = await supabase
         .from('tickets')
-        .select('*, events(title, venue, event_date)')
+        .select('*, events(title, venue, event_date, terms)')
         .eq('id', ticketId)
         .maybeSingle();
 
       if (ticketRecord && ticketRecord.events) {
         eventTitle = ticketRecord.events.title || eventTitle;
         eventVenue = ticketRecord.events.venue || eventVenue;
+        eventTermsText = ticketRecord.events.terms || '';
         
         try {
           const dateObj = new Date(ticketRecord.events.event_date);
@@ -52,7 +54,7 @@ export async function GET(request) {
         // Fallback: If ticket is not found in database yet, fetch the currently active event details
         const { data: actEvent } = await supabase
           .from('events')
-          .select('title, venue, event_date')
+          .select('title, venue, event_date, terms')
           .eq('is_active', true)
           .limit(1)
           .maybeSingle();
@@ -60,6 +62,7 @@ export async function GET(request) {
         if (actEvent) {
           eventTitle = actEvent.title;
           eventVenue = actEvent.venue;
+          eventTermsText = actEvent.terms || '';
           try {
             const dateObj = new Date(actEvent.event_date);
             eventDateText = dateObj.toLocaleDateString('en-US', {
@@ -248,6 +251,115 @@ export async function GET(request) {
       size: 8,
       font: helveticaRegular,
       color: rgb(0.4, 0.4, 0.4),
+    });
+
+    // ── PAGE 2: TERMS AND CONDITIONS ──
+    const page2 = pdfDoc.addPage([400, 650]);
+    
+    // Background Color: Midnight Black (#070709)
+    page2.drawRectangle({
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 650,
+      color: rgb(0.027, 0.027, 0.035),
+    });
+
+    // Gold Outer Border Frame (#e4a62f)
+    page2.drawRectangle({
+      x: 15,
+      y: 15,
+      width: 370,
+      height: 620,
+      borderColor: rgb(0.894, 0.651, 0.184),
+      borderWidth: 1.5,
+    });
+
+    // Logo on Page 2
+    if (logoImage) {
+      page2.drawImage(logoImage, {
+        x: 140,
+        y: 575,
+        width: 120,
+        height: 39,
+      });
+    }
+
+    // Title: TERMS & CONDITIONS
+    page2.drawText('TERMS & CONDITIONS', {
+      x: 120,
+      y: 535,
+      size: 13,
+      font: helveticaBold,
+      color: rgb(0.894, 0.651, 0.184),
+    });
+
+    // Divider Line
+    page2.drawLine({
+      start: { x: 30, y: 520 },
+      end: { x: 370, y: 520 },
+      color: rgb(0.894, 0.651, 0.184),
+      thickness: 1,
+    });
+
+    // Load active dynamic terms or use premium default guidelines
+    let activeTermsList = [];
+    if (eventTermsText && eventTermsText.trim().length > 0) {
+      activeTermsList = eventTermsText.split('\n').map(t => t.trim()).filter(t => t.length > 0);
+    } else {
+      activeTermsList = [
+        "1. Please carry a valid physical photo ID (e.g. Aadhar, Driving License) for security check-in.",
+        "2. Admission is subject to security checks at the main gate. This ticket allows one-time entry only.",
+        "3. Tickets once booked are strictly non-refundable, non-transferable, and cannot be resold.",
+        "4. Outside food, beverages, alcohol, professional cameras, and hazardous objects are strictly prohibited.",
+        "5. The organizers and venue management reserve the absolute right of entry, security screening, and code of conduct."
+      ];
+    }
+
+    let currentY = 485;
+    activeTermsList.forEach((term, index) => {
+      // Clean up text
+      const cleanTerm = term.replace(/^\d+[\.\s\-]+/, '').trim(); // Remove leading numbers
+      const formattedNum = `${index + 1}.  `;
+      
+      // Word wrapping logic
+      const words = cleanTerm.split(' ');
+      let currentLineText = formattedNum;
+      const lines = [];
+
+      words.forEach(word => {
+        const testLine = currentLineText + " " + word;
+        const width = helveticaRegular.widthOfTextAtSize(testLine, 8.5);
+        if (width > 310) {
+          lines.push(currentLineText);
+          currentLineText = "    " + word; // Indent wrapped lines
+        } else {
+          currentLineText = testLine;
+        }
+      });
+      lines.push(currentLineText);
+
+      // Render the wrapped lines on PDF Page 2
+      lines.forEach(line => {
+        page2.drawText(line, {
+          x: 40,
+          y: currentY,
+          size: 8.5,
+          font: helveticaRegular,
+          color: rgb(0.85, 0.85, 0.85),
+        });
+        currentY -= 15;
+      });
+      currentY -= 10; // Extra spacing between bullet points
+    });
+
+    // Page 2 Footer
+    page2.drawText('PLEASE READ CAREFULLY. ENJOY THE CONCERT!', {
+      x: 85,
+      y: 45,
+      size: 8,
+      font: helveticaBold,
+      color: rgb(0.5, 0.5, 0.5),
     });
 
     // Serialize to bytes
