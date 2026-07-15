@@ -34,16 +34,17 @@ Use this document to track the progress of features during development. We will 
 ### Track 3: Ticketing & Payment Gateway (Instamojo)
 *   [x] **Offer Promo Popup** — Time-delayed modal showing the buy-more-get-more promotions.
 *   [x] **Booking & Pricing Engine** — Ticket quantity selectors with live dynamic pricing calculations (Buy 5 Get 1, Buy 8 Get 2).
-*   [x] **Instamojo Checkout Integration** — Interface is set up to receive the booking request. (API logic is mocked in the UI build phase, ready for production).
-*   [x] **PDF Ticket Generator** — PDF ticket template and layout specifications prepared for server-side generation.
-*   [x] **Email Delivery Service** — Booking receipt form and SMTP mail delivery structures prepared.
+*   [x] **Instamojo Checkout Integration** — Fully integrated, live payment gateway routing dynamically back to the checkout origin.
+*   [x] **Multi-Page PDF Pass Generator** — Generates secure gold-accented admission tickets on Page 1, and appends a dynamic database-driven Terms & Conditions list on Page 2 with auto-wrapping layout protection.
+*   [x] **Email Delivery Service** — Automated background transactional Nodemailer dispatch pipelines running live over Port 587 with secure STARTTLS email delivery.
 
 ---
 
 ### Track 4: PWA Admin Panel (/admin)
 *   [x] **PWA Configuration** — Service worker configurations and meta headers defined for stand-alone home-screen app installation.
 *   [x] **Admin Dashboard UI** — Password-protected stats page showing real-time ticket sales, revenue, and attendance.
-*   [x] **Mobile Camera QR Scanner** — In-browser camera reader at `/admin` (Scan tab) utilizing `html5-qrcode` to verify tickets.
+*   [x] **Mobile Camera QR Scanner** — In-browser camera reader at `/admin` (Scan tab) utilizing `html5-qrcode` to verify tickets, protected with safe asynchronous termination handlers to prevent tab-switching crashes.
+*   [x] **Manual Ticket ID Verification** — Added a secure manual override check-in box for gatekeepers to check-in attendees using their 36-character Ticket IDs.
 *   [x] **Offline QR Activator** — Secondary scanner tab (`Sell Counter`) for counter staff to bind generic stickers to guest details.
-*   [x] **Website Asset Manager** — Dynamic forms to upload and replace slide images, gallery photos, and member bios.
+*   [x] **Dynamic Event & Terms Manager** — Dynamic forms to upload and replace slide images, gallery photos, and write custom terms on-the-fly for any concert.
 *   [x] **Zomato / BookMyShow CSV Importer** — Drag-and-drop CSV parser module to sync third-party bookings with the door database.
