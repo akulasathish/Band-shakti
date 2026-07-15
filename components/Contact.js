@@ -220,6 +220,15 @@ export default function Contact() {
           </a>
         </div>
 
+        {/* Footer Regulatory Policy Links */}
+        <div className="footer-links">
+          <a href="/terms">Terms & Conditions</a>
+          <span className="separator">•</span>
+          <a href="/privacy">Privacy Policy</a>
+          <span className="separator">•</span>
+          <a href="/refunds">Cancellation & Refund Policy</a>
+        </div>
+
         <p className="footer-copyright">© 2026 BAND SHAKTHI. ALL RIGHTS RESERVED.</p>
         <p className="footer-credit">JAM ARENA PRODUCTION</p>
       </footer>
@@ -502,6 +511,35 @@ export default function Contact() {
           border-color: var(--color-gold-main);
           background: rgba(228, 166, 47, 0.05);
           transform: translateY(-2px);
+        }
+
+        .footer-links {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          flex-wrap: wrap;
+          gap: 6px 12px;
+          margin-top: 14px;
+          margin-bottom: 12px;
+        }
+
+        .footer-links a {
+          color: var(--color-text-muted);
+          font-size: 0.7rem;
+          text-decoration: none;
+          transition: color 0.2s ease;
+          font-weight: 500;
+          letter-spacing: 0.03em;
+          text-transform: uppercase;
+        }
+
+        .footer-links a:hover {
+          color: var(--color-gold-main);
+        }
+
+        .footer-links .separator {
+          color: rgba(228, 166, 47, 0.25);
+          font-size: 0.7rem;
         }
 
         .footer-copyright {

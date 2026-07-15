@@ -13,6 +13,7 @@ export default function Booking() {
   const [totalTickets, setTotalTickets] = useState(1);
   const [promoMessage, setPromoMessage] = useState('');
   const [showPromoPopup, setShowPromoPopup] = useState(false);
+  const [isBookingLoading, setIsBookingLoading] = useState(false);
 
   const [activeEvent, setActiveEvent] = useState({
     id: null,
@@ -89,7 +90,7 @@ export default function Booking() {
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
-  // Connects with Supabase to insert a real checkout record
+  // Initiates secure API checkout with Instamojo gateway
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
@@ -115,41 +116,43 @@ export default function Booking() {
     }
 
     try {
-      // 1. Insert row into tickets table using activeEvent.id
-      const { data: ticketData, error: ticketError } = await supabase
-        .from('tickets')
-        .insert({
-          event_id: activeEvent.id,
-          buyer_name: name.trim(),
-          buyer_email: trimmedEmail,
-          buyer_phone: trimmedPhone,
-          ticket_type: 'ONLINE',
-          pax: totalTickets,
-          status: 'PAID', // Bypassing payments, automatically marked as paid
-          scanned: false
+      setIsBookingLoading(true);
+
+      const res = await fetch('/api/payment/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: trimmedEmail,
+          phone: trimmedPhone,
+          quantity: totalTickets,
+          eventId: activeEvent.id,
+          payableAmount: payableAmount
         })
-        .select('id')
-        .single();
+      });
 
-      if (ticketError) throw ticketError;
-      const ticketId = ticketData.id;
+      const data = await res.json();
 
-      // 2. Inform user of booking success
-      alert(`Booking Successful!\nTotal Paid: ₹${payableAmount} for ${totalTickets} passes (${quantity} Paid + ${freeTickets} Free).\n\nYour PDF Ticket Pass will download automatically now!`);
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to initialize secure payment session.');
+      }
 
-      // 3. Trigger PDF download with the valid DB Ticket UUID
-      const downloadUrl = `/api/booking/ticket?name=${encodeURIComponent(name)}&email=${encodeURIComponent(email)}&phone=${encodeURIComponent(phone)}&qty=${totalTickets}&id=${ticketId}`;
-      window.open(downloadUrl, '_blank');
+      if (data.simulated) {
+        alert("Instamojo Credentials Not Found on Server.\n\nRedirecting you to our secure local payment sandbox simulator...");
+      } else {
+        alert("Booking request initiated!\n\nRedirecting you securely to Instamojo checkout gateway...");
+      }
 
-      // Reset form
-      setName('');
-      setEmail('');
-      setPhone('');
-      setQuantity(1);
+      // Redirect browser directly to payment screen (Mock or Real Instamojo URL!)
+      window.location.href = data.paymentUrl;
 
     } catch (err) {
-      console.error("Database insert failed:", err);
-      alert("Booking failed to write to database: " + err.message);
+      console.error("Booking checkout initiation failed:", err);
+      alert("Booking failed to initialize secure checkout: " + err.message);
+    } finally {
+      setIsBookingLoading(false);
     }
   };
 
@@ -245,11 +248,25 @@ export default function Booking() {
             />
           </div>
 
-          <button type="submit" className="btn-gold submit-booking-btn">
-            Proceed to Book
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M22,10V6a2,2,0,0,0-2-2H4A2,2,0,0,0,2,6v4a2,2,0,0,1,0,4v4a2,2,0,0,0,2,2H20a2,2,0,0,0,2-2V14a2,2,0,0,1,0-4M20,8.5a1.5,1.5,0,0,0-3,0,1.5,1.5,0,0,0,3,0M7,8.5A1.5,1.5,0,1,0,8.5,10,1.5,1.5,0,0,0,7,8.5M17,15.5a1.5,1.5,0,1,0,1.5,1.5,1.5,1.5,0,0,0-1.5-1.5M7,15.5a1.5,1.5,0,1,0,1.5,1.5,1.5,1.5,0,0,0-1.5-1.5" />
-            </svg>
+          <button 
+            type="submit" 
+            className="btn-gold submit-booking-btn" 
+            disabled={isBookingLoading}
+            style={{ opacity: isBookingLoading ? 0.7 : 1, cursor: isBookingLoading ? 'not-allowed' : 'pointer' }}
+          >
+            {isBookingLoading ? (
+              <>
+                <span className="spinner-mini" style={{ display: 'inline-block', marginRight: '8px' }}></span>
+                Redirecting to Secure Gateway...
+              </>
+            ) : (
+              <>
+                Proceed to Book
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M22,10V6a2,2,0,0,0-2-2H4A2,2,0,0,0,2,6v4a2,2,0,0,1,0,4v4a2,2,0,0,0,2,2H20a2,2,0,0,0,2-2V14a2,2,0,0,1,0-4M20,8.5a1.5,1.5,0,0,0-3,0,1.5,1.5,0,0,0,3,0M7,8.5A1.5,1.5,0,1,0,8.5,10,1.5,1.5,0,0,0,7,8.5M17,15.5a1.5,1.5,0,1,0,1.5,1.5,1.5,1.5,0,0,0-1.5-1.5M7,15.5a1.5,1.5,0,1,0,1.5,1.5,1.5,1.5,0,0,0-1.5-1.5" />
+                </svg>
+              </>
+            )}
           </button>
         </form>
       </div>

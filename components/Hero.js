@@ -199,8 +199,8 @@ export default function Hero() {
           left: 0;
           width: 100%;
           height: 100%;
-          background: linear-gradient(180deg, rgba(7,7,9,0.5) 0%, rgba(7,7,9,0.85) 90%), 
-                      rgba(7, 7, 9, 0.45);
+          background: linear-gradient(180deg, rgba(7,7,9,0.3) 0%, rgba(7,7,9,0.65) 90%), 
+                      rgba(7, 7, 9, 0.2);
           z-index: 2;
         }
 
@@ -210,6 +210,7 @@ export default function Hero() {
           width: 100%;
           text-align: center;
           margin-top: -20px;
+          text-shadow: 0 4px 15px rgba(0, 0, 0, 0.85);
         }
 
         .live-badge {

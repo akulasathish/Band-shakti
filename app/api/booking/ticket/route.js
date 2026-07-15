@@ -3,6 +3,12 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import QRCode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase Client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -10,10 +16,71 @@ export async function GET(request) {
   const email = searchParams.get('email') || 'guest@email.com';
   const phone = searchParams.get('phone') || '98765 43210';
   const qty = searchParams.get('qty') || '1';
-  const ticketId = searchParams.get('id') || 'pass_' + Math.random().toString(36).substring(2, 10);
+  const ticketId = searchParams.get('id') || '';
+
+  // 1. Core Event details fallback values
+  let eventTitle = 'Band Shakthi Live — Jam Arena Show';
+  let eventVenue = 'The DownTown Pub, Ground Stage';
+  let eventDateText = 'Next Friday | 8:00 PM Onwards';
 
   try {
-    // 1. Create a PDF Document
+    // 2. Query database to pull exact event details for this specific ticket
+    if (ticketId && supabaseUrl) {
+      const { data: ticketRecord, error: dbErr } = await supabase
+        .from('tickets')
+        .select('*, events(title, venue, event_date)')
+        .eq('id', ticketId)
+        .maybeSingle();
+
+      if (ticketRecord && ticketRecord.events) {
+        eventTitle = ticketRecord.events.title || eventTitle;
+        eventVenue = ticketRecord.events.venue || eventVenue;
+        
+        try {
+          const dateObj = new Date(ticketRecord.events.event_date);
+          eventDateText = dateObj.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          }) + ' Onwards';
+        } catch (dateErr) {
+          eventDateText = ticketRecord.events.event_date || eventDateText;
+        }
+      } else {
+        // Fallback: If ticket is not found in database yet, fetch the currently active event details
+        const { data: actEvent } = await supabase
+          .from('events')
+          .select('title, venue, event_date')
+          .eq('is_active', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (actEvent) {
+          eventTitle = actEvent.title;
+          eventVenue = actEvent.venue;
+          try {
+            const dateObj = new Date(actEvent.event_date);
+            eventDateText = dateObj.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit'
+            }) + ' Onwards';
+          } catch (e) {
+            eventDateText = actEvent.event_date;
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch dynamic event details for PDF pass:", err);
+  }
+
+  try {
+    // 3. Create a PDF Document
     const pdfDoc = await PDFDocument.create();
     
     // Standard Vertical Concert Pass Dimensions (400pt wide, 650pt high)
@@ -42,7 +109,7 @@ export async function GET(request) {
     const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const helveticaRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-    // 2. Load and embed the official logo.png from the public directory
+    // 4. Load and embed the official logo.png from the public directory
     const logoPath = path.join(process.cwd(), 'public', 'logo.png');
     let logoImage = null;
     try {
@@ -90,13 +157,17 @@ export async function GET(request) {
 
     // ── GIG DETAILS ──
     page.drawText('EVENT:', { x: 40, y: 490, size: 9, font: helveticaBold, color: rgb(0.894, 0.651, 0.184) });
-    page.drawText('Band Shakthi Live — Jam Arena Show', { x: 110, y: 490, size: 10, font: helveticaBold, color: rgb(1, 1, 1) });
+    
+    // Auto-wrap title if too long to prevent PDF visual clipping
+    const titleToDraw = eventTitle.length > 40 ? eventTitle.substring(0, 38) + "..." : eventTitle;
+    page.drawText(titleToDraw, { x: 110, y: 490, size: 10, font: helveticaBold, color: rgb(1, 1, 1) });
 
     page.drawText('VENUE:', { x: 40, y: 465, size: 9, font: helveticaBold, color: rgb(0.894, 0.651, 0.184) });
-    page.drawText('The DownTown Pub, Ground Stage', { x: 110, y: 465, size: 10, font: helveticaRegular, color: rgb(0.9, 0.9, 0.9) });
+    const venueToDraw = eventVenue.length > 40 ? eventVenue.substring(0, 38) + "..." : eventVenue;
+    page.drawText(venueToDraw, { x: 110, y: 465, size: 10, font: helveticaRegular, color: rgb(0.9, 0.9, 0.9) });
 
     page.drawText('DATE/TIME:', { x: 40, y: 440, size: 9, font: helveticaBold, color: rgb(0.894, 0.651, 0.184) });
-    page.drawText('Next Friday | 8:00 PM Onwards', { x: 110, y: 440, size: 10, font: helveticaRegular, color: rgb(0.9, 0.9, 0.9) });
+    page.drawText(eventDateText, { x: 110, y: 440, size: 10, font: helveticaRegular, color: rgb(0.9, 0.9, 0.9) });
 
     // Divider Line 2 (Gold)
     page.drawLine({
@@ -111,7 +182,10 @@ export async function GET(request) {
     page.drawText(name.toUpperCase(), { x: 110, y: 395, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
 
     page.drawText('CONTACT:', { x: 40, y: 370, size: 9, font: helveticaBold, color: rgb(0.894, 0.651, 0.184) });
-    page.drawText(`${email} | ${phone}`, { x: 110, y: 370, size: 9, font: helveticaRegular, color: rgb(0.8, 0.8, 0.8) });
+    
+    // Auto-truncate extremely long emails to prevent overflow on layout
+    const trimmedEmailPhone = `${email.length > 20 ? email.substring(0, 18) + '...' : email} | ${phone}`;
+    page.drawText(trimmedEmailPhone, { x: 110, y: 370, size: 9, font: helveticaRegular, color: rgb(0.8, 0.8, 0.8) });
 
     page.drawText('PASS QTY:', { x: 40, y: 345, size: 9, font: helveticaBold, color: rgb(0.894, 0.651, 0.184) });
     page.drawText(`${qty} PASS(ES)`, { x: 110, y: 345, size: 11, font: helveticaBold, color: rgb(1, 1, 1) });
@@ -125,7 +199,9 @@ export async function GET(request) {
     });
 
     // ── SECURE QR CODE GENERATION ──
-    const verificationUrl = `http://127.0.0.1:3000/admin?verify=${ticketId}`;
+    // Points directly to the absolute local or production verification URL
+    const finalTicketId = ticketId || 'pass_' + Math.random().toString(36).substring(2, 10);
+    const verificationUrl = `${request.headers.get('origin') || 'http://localhost:3000'}/admin?verify=${finalTicketId}`;
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, { 
       width: 300, 
       margin: 1,
@@ -148,7 +224,7 @@ export async function GET(request) {
     });
 
     // Unique Identifier string
-    page.drawText(`TICKET ID: ${ticketId}`, {
+    page.drawText(`TICKET ID: ${finalTicketId}`, {
       x: 40,
       y: 95,
       size: 8,

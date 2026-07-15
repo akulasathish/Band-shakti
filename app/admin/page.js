@@ -20,11 +20,11 @@ function AdminPageContent() {
     setIsAuthLoading(false);
   }, []);
 
-  // Lock browser history to /admin, preventing hardware back button exits
+  // Lock browser history to /admin, preventing hardware back button exits (only when authenticated)
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !isAuthenticated) return;
 
-    // Push state immediately on mount
+    // Push state immediately on authentication
     window.history.pushState(null, document.title, window.location.href);
 
     const handlePopState = (e) => {
@@ -36,7 +36,7 @@ function AdminPageContent() {
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, []);
+  }, [isAuthenticated]);
   
   // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'more' | 'csv' | 'media' | 'history'
   const [activeTab, setActiveTab] = useState('stats');
@@ -62,6 +62,7 @@ function AdminPageContent() {
   // Counter Sell / Sticker Activator Inputs
   const [guestName, setGuestName] = useState('');
   const [guestPhone, setGuestPhone] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
   const [guestPax, setGuestPax] = useState(1);
   const [activeEvent, setActiveEvent] = useState({ id: null, title: 'No Active Event' });
   const [activationResult, setActivationResult] = useState(null);
@@ -1178,6 +1179,7 @@ function AdminPageContent() {
 
     try {
       const ticketId = scanResult.qrId;
+      const finalEmail = guestEmail || (guestPhone ? `${guestPhone.replace(/\s+/g, '')}@counter.com` : 'counter@guest.com');
 
       const { error: dbError } = await supabase
         .from('tickets')
@@ -1185,7 +1187,7 @@ function AdminPageContent() {
           id: ticketId,
           event_id: activeEvent.id,
           buyer_name: guestName,
-          buyer_email: guestPhone ? `${guestPhone}@counter.com` : 'counter@guest.com',
+          buyer_email: finalEmail,
           buyer_phone: guestPhone || '00000 00000',
           ticket_type: 'OFFLINE_GUEST',
           pax: guestPax,
@@ -1195,17 +1197,39 @@ function AdminPageContent() {
 
       if (dbError) throw dbError;
 
+      // Trigger automatic background email pass delivery if guest email is provided
+      if (guestEmail) {
+        fetch('/api/booking/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticketId,
+            name: guestName,
+            email: guestEmail,
+            phone: guestPhone || '00000 00000',
+            qty: guestPax,
+            eventTitle: activeEvent.title,
+            eventVenue: activeEvent.venue || 'Concert Stage',
+            eventDate: activeEvent.event_date || 'Next Event'
+          })
+        }).catch(err => console.error("Automatic email delivery failed:", err));
+      }
+
       setActivationResult({
         success: true,
-        message: `Pass Activated! Pre-printed QR sticker is now bound to "${guestName}" for ${guestPax} pax.`,
+        message: guestEmail 
+          ? `Pass Activated! Bound to "${guestName}" for ${guestPax} pax. Ticket PDF has been automatically dispatched to ${guestEmail}.`
+          : `Pass Activated! Bound to "${guestName}" for ${guestPax} pax.`,
         name: guestName,
         phone: guestPhone || '00000 00000',
+        email: guestEmail || '',
         pax: guestPax,
         ticketId: ticketId
       });
       
       setGuestName('');
       setGuestPhone('');
+      setGuestEmail('');
       setGuestPax(1);
       setScanResult(null);
 
@@ -1240,6 +1264,50 @@ function AdminPageContent() {
     }
     handleScanSuccess(value);
     if (inputEl) inputEl.value = '';
+  };
+
+  const handleExportCSV = () => {
+    if (!ticketsHistory || ticketsHistory.length === 0) {
+      alert("No tickets available to export!");
+      return;
+    }
+
+    try {
+      // 1. Define the CSV column headers
+      const headers = ["Ticket ID", "Buyer Name", "Email", "Phone", "Pax (Quantity)", "Status", "Scanned Status", "Payment ID", "Created At"];
+      
+      // 2. Map tickets history array into CSV formatted rows
+      const rows = ticketsHistory.map(ticket => [
+        ticket.id || "",
+        ticket.buyer_name || "Guest",
+        ticket.buyer_email || "",
+        ticket.buyer_phone || "",
+        ticket.pax || 1,
+        ticket.status || "PENDING",
+        ticket.scanned ? "CHECKED_IN" : "NOT_ATTENDED",
+        ticket.payment_id || "",
+        ticket.created_at ? new Date(ticket.created_at).toLocaleString() : ""
+      ]);
+
+      // 3. Combine header and rows with proper escaping
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      ].join("\n");
+
+      // 4. Create a download link and trigger the browser to save it
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `Band_Shakthi_Guest_List_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error("Failed to export guest list CSV:", err);
+      alert("Error exporting CSV: " + err.message);
+    }
   };
 
   if (isAuthLoading) {
@@ -1766,38 +1834,7 @@ function AdminPageContent() {
               )}
             </div>
 
-            {/* Local Simulator Box (QA desktop testing helper) */}
-            {!scanResult && (
-              <div className="glass-card" style={{ marginTop: '16px', padding: '12px' }}>
-                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
-                  💻 Local Desktop QA Simulator:
-                </span>
-                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                  <input 
-                    type="text" 
-                    id="manual-gate-uuid" 
-                    placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" 
-                    style={{ 
-                      flex: 1, 
-                      background: '#070709', 
-                      border: '1px solid rgba(228, 166, 47, 0.2)', 
-                      color: '#fff', 
-                      borderRadius: '6px', 
-                      fontSize: '0.8rem', 
-                      padding: '6px 10px' 
-                    }}
-                  />
-                  <button 
-                    type="button" 
-                    className="btn-outline" 
-                    style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                    onClick={() => handleSimulateScanInput('manual-gate-uuid')}
-                  >
-                    Verify Pass
-                  </button>
-                </div>
-              </div>
-            )}
+
 
             {/* Scanner Results Overlay */}
             {scanResult && scanResult.status === 'PARTIAL_ENTRY_PROMPT' && (
@@ -1907,36 +1944,7 @@ function AdminPageContent() {
                   )}
                 </div>
 
-                {/* Local Simulator Box (QA desktop testing helper) */}
-                <div className="glass-card" style={{ marginTop: '16px', padding: '12px' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 'bold' }}>
-                    💻 Local Desktop QA Simulator:
-                  </span>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    <input 
-                      type="text" 
-                      id="manual-sticker-uuid" 
-                      placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" 
-                      style={{ 
-                        flex: 1, 
-                        background: '#070709', 
-                        border: '1px solid rgba(228, 166, 47, 0.2)', 
-                        color: '#fff', 
-                        borderRadius: '6px', 
-                        fontSize: '0.8rem', 
-                        padding: '6px 10px' 
-                      }}
-                    />
-                    <button 
-                      type="button" 
-                      className="btn-outline" 
-                      style={{ fontSize: '0.75rem', padding: '6px 12px' }}
-                      onClick={() => handleSimulateScanInput('manual-sticker-uuid')}
-                    >
-                      Bind Sticker
-                    </button>
-                  </div>
-                </div>
+
 
                 {/* Sticker Sheet Generator helper */}
                 <div className="glass-card sticker-generator-card" style={{ marginTop: '20px', padding: '16px' }}>
@@ -2024,6 +2032,16 @@ function AdminPageContent() {
                     />
                   </div>
 
+                  <div className="input-group">
+                    <label>Email (Optional)</label>
+                    <input 
+                      type="email" 
+                      placeholder="Email Address" 
+                      value={guestEmail} 
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                    />
+                  </div>
+
                   <button type="submit" className="btn-gold">
                     Activate Pass Card
                   </button>
@@ -2051,6 +2069,45 @@ function AdminPageContent() {
                   >
                     Download Printable Entry Pass
                   </button>
+                  {activationResult.phone && activationResult.phone !== '00000 00000' && (
+                    <button 
+                      type="button"
+                      className="btn-whatsapp"
+                      onClick={() => {
+                        const origin = window.location.origin;
+                        const ticketUrl = `${origin}/api/booking/ticket?name=${encodeURIComponent(activationResult.name)}&phone=${encodeURIComponent(activationResult.phone)}&qty=${activationResult.pax}&id=${activationResult.ticketId}`;
+                        const text = `Hi ${activationResult.name}!%0A%0AHere is your official Band Shakthi Live Concert entry pass PDF. Please download it using the link below and show it at the gate entry for check-in:%0A%0A🎟️ Passes: ${activationResult.pax}%0A🆔 Pass ID: ${activationResult.ticketId}%0A%0A🔗 Download Link:%0A${encodeURIComponent(ticketUrl)}`;
+                        
+                        let rawPhone = activationResult.phone.replace(/\s+/g, '');
+                        if (!rawPhone.startsWith('+') && rawPhone.length === 10) {
+                          rawPhone = `91${rawPhone}`;
+                        }
+                        
+                        window.open(`https://wa.me/${rawPhone}?text=${text}`, '_blank');
+                      }}
+                      style={{
+                        background: '#25d366',
+                        border: 'none',
+                        color: '#fff',
+                        padding: '10px 16px',
+                        borderRadius: '8px',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.03em'
+                      }}
+                    >
+                      <svg style={{ width: '16px', height: '16px', fill: 'currentColor' }} viewBox="0 0 24 24">
+                        <path d="M12.008 0C5.397 0 .06 5.348.06 12.008c-.001 2.097.546 4.142 1.587 5.946L0 24l6.284-1.646c1.751.955 3.719 1.456 5.724 1.457 6.613 0 11.949-5.34 11.953-11.997.002-3.204-1.239-6.216-3.505-8.484C18.22 1.246 15.21.001 12.008 0zm6.97 15.344c-.242.678-1.402 1.294-1.958 1.378-.5.075-1.13.105-1.823-.115-2.9-1.258-4.795-4.18-4.94-4.373-.144-.194-1.182-1.57-1.182-2.994 0-1.425.748-2.127 1.014-2.417.265-.29.579-.362.772-.362.193 0 .386.002.556.01.178.01.417-.067.653.502.242.581.823 2.007.895 2.152.072.146.121.314.024.507-.097.193-.145.313-.29.483-.145.168-.305.379-.435.508-.145.143-.297.3-.127.59.169.29.752 1.242 1.616 2.013 1.111.992 2.05 1.3 2.34 1.445.29.144.46.12.63-.073.17-.193.724-.847.917-1.137.193-.29.387-.241.653-.145.267.096 1.693.799 1.983.944.29.146.483.218.556.34.07.12.07.701-.17 1.379z"/>
+                      </svg>
+                      Send Pass via WhatsApp
+                    </button>
+                  )}
                   <button 
                     type="button" 
                     className="btn-outline" 
@@ -2625,16 +2682,43 @@ function AdminPageContent() {
               </button>
             </div>
 
-            {/* Search Filter Input */}
-            <div className="input-group" style={{ marginBottom: '20px' }}>
-              <label>Search Passes</label>
-              <input 
-                type="text" 
-                placeholder="Search by Name, Phone, or ID..." 
-                value={historySearch}
-                onChange={(e) => setHistorySearch(e.target.value)}
-                style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
-              />
+            {/* Search Filter Input with Gold Export CSV Action */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'flex-end' }}>
+              <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+                <label>Search Passes</label>
+                <input 
+                  type="text" 
+                  placeholder="Search by Name, Phone, or ID..." 
+                  value={historySearch}
+                  onChange={(e) => setHistorySearch(e.target.value)}
+                  style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                style={{
+                  height: '38px',
+                  background: 'linear-gradient(135deg, #e4a62f 0%, #b37d14 100%)',
+                  border: 'none',
+                  color: '#070709',
+                  padding: '0 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 8px rgba(228, 166, 47, 0.2)',
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                📥 Export CSV
+              </button>
             </div>
 
             <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '60vh', paddingBottom: '40px' }}>
@@ -3976,7 +4060,18 @@ function AdminPageContent() {
 }
 
 const AdminPage = dynamic(() => Promise.resolve(AdminPageContent), {
-  ssr: false
+  ssr: false,
+  loading: () => (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#070709', color: 'var(--color-gold-light)' }}>
+      <span className="spinner-mini" style={{ width: '40px', height: '40px', border: '3px solid rgba(228, 166, 47, 0.1)', borderTopColor: 'var(--color-gold-main)', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></span>
+      <p style={{ marginTop: '16px', fontSize: '0.85rem', letterSpacing: '0.05em', fontFamily: 'sans-serif' }}>LOADING SECURE PANEL...</p>
+      <style jsx>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  )
 });
 
 export default AdminPage;
