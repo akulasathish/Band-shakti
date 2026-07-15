@@ -107,7 +107,7 @@ export async function GET(request) {
     const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://bandshakthi.com';
     const absoluteDownloadUrl = `${origin}${downloadUrl}`;
 
-    // Trigger automatic background email pass delivery for online checkout
+    // Trigger automatic direct email pass delivery for online checkout
     if (ticket && ticket.buyer_email) {
       let eventTitle = 'Band Shakthi Live Concert';
       let eventVenue = 'The DownTown Pub, Ground Stage';
@@ -131,21 +131,17 @@ export async function GET(request) {
         }
       }
 
-      const emailEndpoint = `${origin}/api/booking/email`;
-      fetch(emailEndpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticketId: ticket.id,
-          name: ticket.buyer_name,
-          email: ticket.buyer_email,
-          phone: ticket.buyer_phone || '00000 00000',
-          qty: ticket.pax,
-          eventTitle,
-          eventVenue,
-          eventDate: eventDateText
-        })
-      }).catch(err => console.error("[Online Checkout] Background email delivery failed:", err));
+      // Call our direct email helper inline for maximum reliability on serverless environments
+      await sendPassEmail({
+        ticketId: ticket.id,
+        name: ticket.buyer_name,
+        email: ticket.buyer_email,
+        phone: ticket.buyer_phone || '00000 00000',
+        qty: ticket.pax,
+        eventTitle,
+        eventVenue,
+        eventDate: eventDateText
+      });
     }
     const whatsappText = `Hi Band Shakthi! I just booked live tickets.%0A%0A👤 Holder: ${encodeURIComponent(ticket.buyer_name)}%0A🎟️ Pax: ${ticket.pax} Pass(es)%0A🆔 Ticket ID: ${ticket.id}%0A%0A🔗 Download Link:%0A${encodeURIComponent(absoluteDownloadUrl)}`;
     const whatsappUrl = `https://wa.me/918897963589?text=${whatsappText}`;
@@ -463,4 +459,70 @@ function renderErrorPage(errorMsg) {
     </body>
     </html>
   `;
+}
+
+async function sendPassEmail({ ticketId, name, email, phone, qty, eventTitle, eventVenue, eventDate }) {
+  try {
+    const host = process.env.EMAIL_HOST;
+    const port = parseInt(process.env.EMAIL_PORT || '465');
+    const user = process.env.EMAIL_USER;
+    const pass = process.env.EMAIL_PASS;
+    const from = process.env.EMAIL_FROM || 'booking@bandshakti.com';
+    const websiteUrl = process.env.WEBSITE_URL || 'https://www.bandshakthi.com';
+
+    if (!host || !user || !pass) {
+      console.warn("[Email Helper] SMTP credentials missing in environment variables. Simulating email send.");
+      return;
+    }
+
+    const ticketDownloadUrl = `${websiteUrl}/api/booking/ticket?name=${encodeURIComponent(name)}&phone=${encodeURIComponent(phone)}&qty=${qty}&id=${ticketId}`;
+
+    const htmlTemplate = `
+      <div style="background-color: #070709; color: #ffffff; font-family: 'Inter', sans-serif; padding: 40px 20px; text-align: center; max-width: 550px; margin: 0 auto; border: 1px solid #e4a62f; border-radius: 12px;">
+        <div style="margin-bottom: 24px;">
+          <h1 style="color: #e4a62f; font-size: 24px; text-transform: uppercase; letter-spacing: 0.1em; margin: 0;">BAND SHAKTHI</h1>
+          <p style="color: #888; font-size: 12px; margin-top: 4px;">OFFICIAL ENTRY PASS</p>
+        </div>
+        <hr style="border: 0; border-top: 1px solid rgba(228,166,47,0.2); margin: 20px 0;" />
+        <div style="text-align: left; margin: 24px 0;">
+          <h2 style="font-size: 18px; color: #ffffff; margin-bottom: 8px;">Hi ${name},</h2>
+          <p style="color: #ccc; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">Your live booking is confirmed! Below are your entry pass details. Please download your secure PDF pass and present it at the check-in gate for entry.</p>
+          
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(228,166,47,0.15); border-radius: 8px; padding: 16px;">
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Show:</strong> ${eventTitle}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Venue:</strong> ${eventVenue}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Date:</strong> ${eventDate}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Quantity:</strong> ${qty} Person(s)</p>
+            <p style="margin: 0; font-size: 12px; color: #e4a62f; font-family: monospace;"><strong>Ticket ID:</strong> ${ticketId}</p>
+          </div>
+        </div>
+        <div style="margin: 32px 0;">
+          <a href="${ticketDownloadUrl}" style="background: linear-gradient(135deg, #e4a62f 0%, #b37d14 100%); color: #070709; text-decoration: none; padding: 14px 28px; border-radius: 30px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; display: inline-block; box-shadow: 0 4px 15px rgba(228, 166, 47, 0.3);">
+            📥 Download PDF Entry Pass
+          </a>
+        </div>
+        <p style="color: #666; font-size: 11px; line-height: 1.4; margin: 20px 0 0 0;">This is a secure system-generated pass. Please do not share this email or download link with anyone. Each QR code is uniquely validated upon arrival.</p>
+      </div>
+    `;
+
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
+      auth: { user, pass }
+    });
+
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: `Your Booking Pass | ${eventTitle} — Band Shakthi`,
+      text: `Hi ${name}! Your entry pass is ready. Please download your PDF pass here: ${ticketDownloadUrl}`,
+      html: htmlTemplate
+    });
+
+    console.log(`[Email Helper] Custom ticket emailed successfully to ${email}`);
+  } catch (error) {
+    console.error("[Email Helper] Error sending email directly:", error);
+  }
 }
