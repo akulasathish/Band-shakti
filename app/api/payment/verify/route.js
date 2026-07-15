@@ -38,7 +38,7 @@ export async function GET(request) {
           ? 'https://www.instamojo.com/api/1.1' 
           : 'https://test.instamojo.com/api/1.1';
 
-        const res = await fetch(`${instamojoHost}/payment-requests/${paymentRequestParamId}/${paymentId}/`, {
+        const res = await fetch(`${instamojoHost}/payment-requests/${paymentRequestParamId}/`, {
           method: 'GET',
           headers: {
             'X-Api-Key': apiKey,
@@ -46,12 +46,33 @@ export async function GET(request) {
           }
         });
 
-        const data = await res.json();
-        
-        if (res.ok && data.success && data.payment_request?.payment?.status === 'Credit') {
-          paymentVerified = true;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.payment_request) {
+            const reqStatus = data.payment_request.status;
+            const pmts = data.payment_request.payments || [];
+            
+            // Find the payment matching our paymentId with status 'Credit' (successful)
+            const paymentObj = pmts.find(p => p.payment_id === paymentId);
+            
+            if (paymentObj && paymentObj.status === 'Credit') {
+              paymentVerified = true;
+            } else {
+              console.warn("[Instamojo Verification] Payment ID match failed. Details:", data);
+              // Fallback: If status is Completed and there is at least one successful payment
+              if (reqStatus === 'Completed' && pmts.some(p => p.status === 'Credit')) {
+                paymentVerified = true;
+              }
+            }
+          } else {
+            console.error("Instamojo verification check returned success=false:", data);
+          }
         } else {
-          console.error("Instamojo verification check failed:", data);
+          console.error("Instamojo request failed status:", res.status);
+          try {
+            const errBody = await res.text();
+            console.error("Instamojo error payload:", errBody);
+          } catch (_) {}
         }
       }
     }
