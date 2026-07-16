@@ -2073,7 +2073,46 @@ function AdminPageContent() {
                   )}
                 </div>
 
-
+                {/* Manual Sticker ID Entry */}
+                <div className="glass-card" style={{ marginTop: '20px', padding: '18px', border: '1px solid rgba(228, 166, 47, 0.15)' }}>
+                  <h4 style={{ fontSize: '0.95rem', color: 'var(--color-gold-light)', marginBottom: '8px' }}>
+                    🔑 Manual Sticker ID Entry
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '12px', lineHeight: '1.4' }}>
+                    If the camera feed is not available, enter the printed Sticker ID (UUID) manually below to activate it.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <input 
+                      id="manual-sticker-id-input"
+                      type="text" 
+                      placeholder="e.g. f81d4fae-7dec-11d0-a765-00a0c91e6bf6" 
+                      style={{ 
+                        padding: '12px', 
+                        background: '#070709', 
+                        border: '1px solid rgba(255,255,255,0.1)', 
+                        borderRadius: '6px', 
+                        color: '#fff', 
+                        fontSize: '0.85rem', 
+                        width: '100%',
+                        outline: 'none',
+                        fontFamily: 'monospace'
+                      }} 
+                    />
+                    <button 
+                      type="button"
+                      className="btn-gold" 
+                      onClick={() => handleSimulateScanInput('manual-sticker-id-input')}
+                      style={{ 
+                        width: '100%', 
+                        padding: '12px', 
+                        fontSize: '0.85rem',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      Retrieve & Configure Sticker ⚡
+                    </button>
+                  </div>
+                </div>
 
                 {/* Sticker Sheet Generator helper */}
                 <div className="glass-card sticker-generator-card" style={{ marginTop: '20px', padding: '16px' }}>
@@ -4254,7 +4293,7 @@ function AdminPageContent() {
                   <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Price (₹)</label>
                   <input 
                     type="number" 
-                    value={editingEvent.ticket_price || '0'} 
+                    value={editingEvent.ticket_price ?? ''} 
                     onChange={(e) => setEditingEvent({ ...editingEvent, ticket_price: e.target.value })}
                     style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
                     required 
@@ -4264,7 +4303,7 @@ function AdminPageContent() {
                   <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Capacity</label>
                   <input 
                     type="number" 
-                    value={editingEvent.total_capacity || '0'} 
+                    value={editingEvent.total_capacity ?? ''} 
                     onChange={(e) => setEditingEvent({ ...editingEvent, total_capacity: e.target.value })}
                     style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
                     required 

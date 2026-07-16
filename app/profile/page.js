@@ -275,9 +275,12 @@ export default function Profile() {
             <div className="user-profile-summary glass-card">
               <div className="user-avatar-badge">👤</div>
               <div className="user-details-meta">
-                <h3>Vibe Account</h3>
+                <h3>{bookings[0]?.buyer_name || user.email.split('@')[0]}</h3>
                 <p className="user-email">{user.email}</p>
-                <span className="verified-badge">✓ Email Verified</span>
+                <div className="mobile-badges-wrapper">
+                  <span className="verified-badge">✓ Fan Member</span>
+                  <span className="verified-badge" style={{ color: 'var(--color-gold-light)', border: '1px solid rgba(212, 175, 55, 0.2)', padding: '2px 6px', borderRadius: '4px', background: 'rgba(212,175,55,0.05)' }}>✓ Verified Email</span>
+                </div>
               </div>
               <button onClick={handleLogout} className="btn-logout">
                 Log Out 🚪
@@ -614,6 +617,19 @@ export default function Profile() {
           font-size: 0.75rem;
           color: #00ff66;
           font-weight: 600;
+        }
+
+        .mobile-badges-wrapper {
+          display: flex;
+          gap: 8px;
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        @media (min-width: 576px) {
+          .mobile-badges-wrapper {
+            justify-content: flex-start;
+          }
         }
 
         .btn-logout {
