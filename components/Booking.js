@@ -478,11 +478,11 @@ export default function Booking() {
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                   <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter 4-Digit Code</label>
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter Code</label>
                     <input 
                       type="text" 
-                      maxLength="4"
-                      placeholder="1234" 
+                      maxLength="8"
+                      placeholder="123456" 
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       style={{ 
@@ -491,10 +491,10 @@ export default function Booking() {
                         border: '1px solid var(--color-gold-main)',
                         borderRadius: '8px',
                         padding: '12px',
-                        width: '140px',
+                        width: '180px',
                         fontSize: '1.6rem',
                         fontWeight: '700',
-                        letterSpacing: '0.25em',
+                        letterSpacing: '0.2em',
                         textAlign: 'center'
                       }}
                       required

@@ -223,12 +223,12 @@ export default function Profile() {
                 <p className="auth-subtitle">We sent a secure verification code to <br /><strong>{email}</strong></p>
                 
                 <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>4-Digit Code</label>
+                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>Verification Code</label>
                   <input 
                     id="auth-otp"
                     type="text" 
-                    maxLength="4"
-                    placeholder="1234" 
+                    maxLength="8"
+                    placeholder="123456" 
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                     className="otp-input"
@@ -495,10 +495,10 @@ export default function Profile() {
         }
 
         .otp-input {
-          width: 140px !important;
+          width: 180px !important;
           font-size: 1.6rem !important;
           font-weight: 700;
-          letter-spacing: 0.25em;
+          letter-spacing: 0.2em;
           text-align: center;
           color: var(--color-gold-light, #f0e68c) !important;
           border-color: var(--color-gold-main, #d4af37) !important;
