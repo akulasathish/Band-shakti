@@ -75,6 +75,8 @@ function AdminPageContent() {
 
   // --- EVENTS TRANSITION MANAGER STATES ---
   const [eventsList, setEventsList] = useState([]);
+  const [editingEvent, setEditingEvent] = useState(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [showCreateEventForm, setShowCreateEventForm] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
@@ -714,6 +716,39 @@ function AdminPageContent() {
       alert("Delete failed: " + err.message);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleUpdateEvent = async (e) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+    setIsSavingEdit(true);
+    try {
+      const { error } = await supabase
+        .from('events')
+        .update({
+          title: editingEvent.title,
+          event_date: editingEvent.event_date,
+          venue: editingEvent.venue,
+          ticket_price: parseInt(editingEvent.ticket_price) || 0,
+          total_capacity: parseInt(editingEvent.total_capacity) || 0,
+          description: editingEvent.description,
+          terms: editingEvent.terms
+        })
+        .eq('id', editingEvent.id);
+
+      if (error) throw error;
+
+      alert('Event updated successfully!');
+      setEditingEvent(null);
+      await fetchActiveEvent();
+      await fetchEventsList();
+      await fetchStats();
+    } catch (err) {
+      console.error("Failed to update event:", err);
+      alert("Update failed: " + err.message);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -1707,8 +1742,14 @@ function AdminPageContent() {
                             }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <div style={{ flex: 1, paddingRight: '10px' }}>
-                                <h6 style={{ fontSize: '0.85rem', margin: 0, color: evt.is_active ? 'var(--color-gold-light)' : '#fff', fontWeight: 600 }}>{evt.title}</h6>
+                              <div 
+                                onClick={() => setEditingEvent({ ...evt, event_date: evt.event_date ? evt.event_date.substring(0, 16) : '' })} 
+                                style={{ flex: 1, paddingRight: '10px', cursor: 'pointer' }}
+                                title="Click to edit event details"
+                              >
+                                <h6 style={{ fontSize: '0.85rem', margin: 0, color: evt.is_active ? 'var(--color-gold-light)' : '#fff', fontWeight: 600 }}>
+                                  ✏️ {evt.title} <span style={{ fontSize: '0.65rem', fontWeight: 'normal', color: 'var(--color-gold-main)', marginLeft: '6px' }}>(Click to edit)</span>
+                                </h6>
                                 <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
                                   📅 {new Date(evt.event_date).toLocaleDateString('en-IN', { dateStyle: 'medium' })} | 📍 {evt.venue}
                                 </p>
@@ -1801,8 +1842,14 @@ function AdminPageContent() {
                                     alignItems: 'center'
                                   }}
                                 >
-                                  <div style={{ flex: 1, paddingRight: '10px' }}>
-                                    <h6 style={{ fontSize: '0.75rem', margin: 0, color: '#aaa', textDecoration: 'line-through' }}>{evt.title}</h6>
+                                  <div 
+                                    onClick={() => setEditingEvent({ ...evt, event_date: evt.event_date ? evt.event_date.substring(0, 16) : '' })} 
+                                    style={{ flex: 1, paddingRight: '10px', cursor: 'pointer' }}
+                                    title="Click to edit event details"
+                                  >
+                                    <h6 style={{ fontSize: '0.75rem', margin: 0, color: '#aaa', textDecoration: 'line-through' }}>
+                                      ✏️ {evt.title} <span style={{ fontSize: '0.55rem', textDecoration: 'none', color: 'var(--color-gold-main)', display: 'inline-block', marginLeft: '4px' }}>(Click to edit)</span>
+                                    </h6>
                                     <p style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', margin: '2px 0 0 0' }}>
                                       📅 {new Date(evt.event_date).toLocaleDateString()} | 📍 {evt.venue}
                                     </p>
@@ -4137,6 +4184,133 @@ function AdminPageContent() {
           letter-spacing: 0.02em;
         }
       `}</style>
+      {/* ✏️ EDIT EVENT MODAL POPUP DIALOG */}
+      {editingEvent && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: '16px'
+        }}>
+          <div className="glass-card" style={{
+            background: '#0f0f15',
+            border: '1px solid var(--color-gold-main)',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '500px',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+          }}>
+            <h3 style={{ color: 'var(--color-gold-main)', fontSize: '1.2rem', fontWeight: 700, margin: '0 0 16px 0', borderBottom: '1px solid rgba(228, 166, 47, 0.2)', paddingBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              ✏️ Edit Show Details
+            </h3>
+
+            <form onSubmit={handleUpdateEvent} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Show Title</label>
+                <input 
+                  type="text" 
+                  value={editingEvent.title || ''} 
+                  onChange={(e) => setEditingEvent({ ...editingEvent, title: e.target.value })}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
+                  required 
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Date & Time</label>
+                <input 
+                  type="datetime-local" 
+                  value={editingEvent.event_date || ''} 
+                  onChange={(e) => setEditingEvent({ ...editingEvent, event_date: e.target.value })}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
+                  required 
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Venue Location</label>
+                <input 
+                  type="text" 
+                  value={editingEvent.venue || ''} 
+                  onChange={(e) => setEditingEvent({ ...editingEvent, venue: e.target.value })}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
+                  required 
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Price (₹)</label>
+                  <input 
+                    type="number" 
+                    value={editingEvent.ticket_price || '0'} 
+                    onChange={(e) => setEditingEvent({ ...editingEvent, ticket_price: e.target.value })}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
+                    required 
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Capacity</label>
+                  <input 
+                    type="number" 
+                    value={editingEvent.total_capacity || '0'} 
+                    onChange={(e) => setEditingEvent({ ...editingEvent, total_capacity: e.target.value })}
+                    style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem' }}
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Description / Tagline</label>
+                <textarea 
+                  value={editingEvent.description || ''} 
+                  onChange={(e) => setEditingEvent({ ...editingEvent, description: e.target.value })}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem', minHeight: '60px', fontFamily: 'inherit', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', fontWeight: 600 }}>Terms & Conditions</label>
+                <textarea 
+                  value={editingEvent.terms || ''} 
+                  onChange={(e) => setEditingEvent({ ...editingEvent, terms: e.target.value })}
+                  style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: '#fff', padding: '10px', fontSize: '0.85rem', minHeight: '80px', fontFamily: 'inherit', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setEditingEvent(null)}
+                  style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#aaa', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isSavingEdit}
+                  className="btn-gold"
+                  style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '0.85rem', cursor: isSavingEdit ? 'not-allowed' : 'pointer' }}
+                >
+                  {isSavingEdit ? 'Saving...' : 'Save Changes 💾'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -362,9 +362,10 @@ export default function Booking() {
             <input 
               id="buyer-phone"
               type="tel" 
-              placeholder="98765 43210" 
+              placeholder="Enter Contact Number" 
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              autoComplete="off"
               required
             />
           </div>
