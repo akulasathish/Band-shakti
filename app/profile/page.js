@@ -554,29 +554,48 @@ export default function Profile() {
 
         .user-profile-summary {
           display: flex;
+          flex-direction: column;
           align-items: center;
-          padding: 20px;
-          background: rgba(13, 13, 18, 0.8);
+          padding: 24px 20px;
+          background: rgba(13, 13, 18, 0.85);
           border: 1px solid rgba(228, 166, 47, 0.15);
           border-radius: 12px;
-          justify-content: space-between;
+          text-align: center;
+          gap: 16px;
+        }
+
+        @media (min-width: 576px) {
+          .user-profile-summary {
+            flex-direction: row;
+            text-align: left;
+            justify-content: space-between;
+            gap: 20px;
+          }
         }
 
         .user-avatar-badge {
-          width: 50px;
-          height: 50px;
+          width: 54px;
+          height: 54px;
           background: rgba(228, 166, 47, 0.1);
-          border: 1px solid rgba(228, 166, 47, 0.2);
+          border: 1px solid rgba(228, 166, 47, 0.25);
           border-radius: 50%;
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 1.5rem;
+          font-size: 1.6rem;
         }
 
         .user-details-meta {
           flex: 1;
-          margin-left: 16px;
+          margin-left: 0;
+          width: 100%;
+          overflow: hidden;
+        }
+
+        @media (min-width: 576px) {
+          .user-details-meta {
+            margin-left: 18px;
+          }
         }
 
         .user-details-meta h3 {
@@ -606,6 +625,16 @@ export default function Profile() {
           font-size: 0.85rem;
           cursor: pointer;
           transition: 0.2s;
+          width: 100%;
+          max-width: 180px;
+          text-align: center;
+        }
+
+        @media (min-width: 576px) {
+          .btn-logout {
+            width: auto;
+            max-width: none;
+          }
         }
 
         .btn-logout:hover {
@@ -657,6 +686,18 @@ export default function Profile() {
         @media (min-width: 768px) {
           .bookings-grid {
             grid-template-columns: 1fr 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .card-actions {
+            flex-direction: column;
+            gap: 8px;
+          }
+          .buyer-meta-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
           }
         }
 

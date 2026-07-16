@@ -332,6 +332,46 @@ export default function Booking() {
             </div>
           </div>
 
+          {/* Authenticated User Status Banner */}
+          {user ? (
+            <div style={{
+              background: 'rgba(212, 175, 55, 0.08)',
+              border: '1px solid rgba(212, 175, 55, 0.3)',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '10px'
+            }}>
+              <span style={{ fontSize: '0.85rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                👤 Logged in: <strong style={{ color: 'var(--color-gold-light)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setUser(null);
+                  setEmail('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ff5555',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  padding: 0,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                Logout ✖️
+              </button>
+            </div>
+          ) : null}
+
           {/* Attendee Info Inputs */}
           <div className="input-group">
             <label htmlFor="buyer-name">Name</label>
@@ -353,6 +393,8 @@ export default function Booking() {
               placeholder="name@email.com" 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              readOnly={!!user}
+              style={user ? { opacity: 0.7, background: 'rgba(255,255,255,0.02)', cursor: 'not-allowed' } : {}}
               required
             />
           </div>
