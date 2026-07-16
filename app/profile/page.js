@@ -138,22 +138,38 @@ export default function Profile() {
     }
   };
 
-  // Auth Handler: Verify 6-Digit OTP
+  // Auth Handler: Verify OTP (supports both existing logins and new signups automatically!)
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
-    if (otpCode.length < 6) {
-      setAuthError('Please enter the 6-digit code.');
+    if (otpCode.length < 4) {
+      setAuthError('Please enter your verification code.');
       return;
     }
     try {
       setIsAuthLoading(true);
       setAuthError('');
-      const { data, error } = await supabase.auth.verifyOtp({
+      
+      // Try verifying as an existing user login first
+      let { data, error } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: otpCode.trim(),
         type: 'email'
       });
-      if (error) throw error;
+      
+      // Fallback: If login verification fails, try verifying as a brand-new user signup!
+      if (error) {
+        const signupRes = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otpCode.trim(),
+          type: 'signup'
+        });
+        
+        if (signupRes.error) {
+          throw new Error(signupRes.error.message || error.message);
+        }
+        data = signupRes.data;
+      }
+
       if (data?.user) {
         setUser(data.user);
         setOtpSent(false);

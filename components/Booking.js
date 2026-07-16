@@ -145,21 +145,37 @@ export default function Booking() {
     }
   };
 
-  // Verifies the user entered 4-digit OTP code and logs them in
+  // Verifies the user entered OTP code and logs them in (supports both existing logins and new signups automatically!)
   const handleVerifyOTP = async () => {
     if (otpCode.length < 4) {
-      setAuthError('Please enter your 4-digit verification code.');
+      setAuthError('Please enter your verification code.');
       return;
     }
     try {
       setIsAuthLoading(true);
       setAuthError('');
-      const { data, error } = await supabase.auth.verifyOtp({
+      
+      // Try verifying as an existing user login first
+      let { data, error } = await supabase.auth.verifyOtp({
         email: authEmail.trim(),
         token: otpCode.trim(),
         type: 'email'
       });
-      if (error) throw error;
+      
+      // Fallback: If login verification fails, try verifying as a brand-new user signup!
+      if (error) {
+        const signupRes = await supabase.auth.verifyOtp({
+          email: authEmail.trim(),
+          token: otpCode.trim(),
+          type: 'signup'
+        });
+        
+        if (signupRes.error) {
+          throw new Error(signupRes.error.message || error.message);
+        }
+        data = signupRes.data;
+      }
+
       if (data?.user) {
         setUser(data.user);
         setEmail(data.user.email);
