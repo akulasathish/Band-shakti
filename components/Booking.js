@@ -145,10 +145,10 @@ export default function Booking() {
     }
   };
 
-  // Verifies the user entered 6-digit OTP code and logs them in
+  // Verifies the user entered OTP code and logs them in (supports both 6 and 8 digit formats dynamically!)
   const handleVerifyOTP = async () => {
     if (otpCode.length < 6) {
-      setAuthError('Please enter the 6-digit code.');
+      setAuthError('Please enter a valid verification code.');
       return;
     }
     try {
@@ -474,15 +474,15 @@ export default function Booking() {
             ) : (
               <>
                 <h3 className="popup-title">🔢 ENTER VERIFICATION CODE</h3>
-                <p className="popup-subtitle">We sent a secure 6-digit OTP code to <br /><strong style={{ color: '#ffffff' }}>{authEmail}</strong></p>
+                <p className="popup-subtitle">We sent a secure verification OTP code to <br /><strong style={{ color: '#ffffff' }}>{authEmail}</strong></p>
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                   <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter 6-Digit Code</label>
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter Code</label>
                     <input 
                       type="text" 
-                      maxLength="6"
-                      placeholder="123456" 
+                      maxLength="8"
+                      placeholder="12345678" 
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       style={{ 
@@ -491,10 +491,10 @@ export default function Booking() {
                         border: '1px solid var(--color-gold-main)',
                         borderRadius: '8px',
                         padding: '12px',
-                        width: '180px',
+                        width: '220px',
                         fontSize: '1.6rem',
                         fontWeight: '700',
-                        letterSpacing: '0.2em',
+                        letterSpacing: '0.15em',
                         textAlign: 'center'
                       }}
                       required

@@ -214,7 +214,7 @@ export default function Profile() {
                 {authError && <div className="auth-error">⚠️ {authError}</div>}
                 
                 <button type="submit" className="btn-gold" disabled={isAuthLoading}>
-                  {isAuthLoading ? 'Sending OTP Code...' : 'Get 6-Digit OTP Code ✉️'}
+                  {isAuthLoading ? 'Sending OTP Code...' : 'Get Verification OTP Code ✉️'}
                 </button>
               </form>
             ) : (
@@ -223,12 +223,12 @@ export default function Profile() {
                 <p className="auth-subtitle">We sent a secure verification code to <br /><strong>{email}</strong></p>
                 
                 <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>6-Digit Code</label>
+                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>Verification Code</label>
                   <input 
                     id="auth-otp"
                     type="text" 
-                    maxLength="6"
-                    placeholder="123456" 
+                    maxLength="8"
+                    placeholder="12345678" 
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                     className="otp-input"
@@ -495,10 +495,10 @@ export default function Profile() {
         }
 
         .otp-input {
-          width: 160px !important;
+          width: 220px !important;
           font-size: 1.6rem !important;
           font-weight: 700;
-          letter-spacing: 0.2em;
+          letter-spacing: 0.15em;
           text-align: center;
           color: var(--color-gold-light, #f0e68c) !important;
           border-color: var(--color-gold-main, #d4af37) !important;
