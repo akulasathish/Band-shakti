@@ -145,10 +145,10 @@ export default function Booking() {
     }
   };
 
-  // Verifies the user entered OTP code and logs them in (supports both existing logins and new signups automatically!)
+  // Verifies the user entered 6-digit OTP code and logs them in (supports both existing logins and new signups automatically!)
   const handleVerifyOTP = async () => {
-    if (otpCode.length < 4) {
-      setAuthError('Please enter your verification code.');
+    if (otpCode.length < 6) {
+      setAuthError('Please enter your 6-digit verification code.');
       return;
     }
     try {
@@ -494,10 +494,10 @@ export default function Booking() {
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                   <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter Code</label>
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter 6-Digit Code</label>
                     <input 
                       type="text" 
-                      maxLength="8"
+                      maxLength="6"
                       placeholder="123456" 
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}

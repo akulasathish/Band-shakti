@@ -141,8 +141,8 @@ export default function Profile() {
   // Auth Handler: Verify OTP (supports both existing logins and new signups automatically!)
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
-    if (otpCode.length < 4) {
-      setAuthError('Please enter your verification code.');
+    if (otpCode.length < 6) {
+      setAuthError('Please enter your 6-digit verification code.');
       return;
     }
     try {
@@ -239,11 +239,11 @@ export default function Profile() {
                 <p className="auth-subtitle">We sent a secure verification code to <br /><strong>{email}</strong></p>
                 
                 <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>Verification Code</label>
+                  <label htmlFor="auth-otp" style={{ alignSelf: 'flex-start' }}>6-Digit Code</label>
                   <input 
                     id="auth-otp"
                     type="text" 
-                    maxLength="8"
+                    maxLength="6"
                     placeholder="123456" 
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
