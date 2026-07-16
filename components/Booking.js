@@ -145,10 +145,10 @@ export default function Booking() {
     }
   };
 
-  // Verifies the user entered OTP code and logs them in (supports both 6 and 8 digit formats dynamically!)
+  // Verifies the user entered 4-digit OTP code and logs them in
   const handleVerifyOTP = async () => {
-    if (otpCode.length < 6) {
-      setAuthError('Please enter a valid verification code.');
+    if (otpCode.length < 4) {
+      setAuthError('Please enter your 4-digit verification code.');
       return;
     }
     try {
@@ -478,11 +478,11 @@ export default function Booking() {
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
                   <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter Code</label>
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter 4-Digit Code</label>
                     <input 
                       type="text" 
-                      maxLength="8"
-                      placeholder="12345678" 
+                      maxLength="4"
+                      placeholder="1234" 
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
                       style={{ 
@@ -491,10 +491,10 @@ export default function Booking() {
                         border: '1px solid var(--color-gold-main)',
                         borderRadius: '8px',
                         padding: '12px',
-                        width: '220px',
+                        width: '140px',
                         fontSize: '1.6rem',
                         fontWeight: '700',
-                        letterSpacing: '0.15em',
+                        letterSpacing: '0.25em',
                         textAlign: 'center'
                       }}
                       required
