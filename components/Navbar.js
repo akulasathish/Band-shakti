@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,6 +40,7 @@ export default function Navbar() {
             <button className="desktop-nav-link" onClick={() => handleNavClick('gallery')}>Gallery</button>
             <button className="desktop-nav-link" onClick={() => handleNavClick('news')}>News</button>
             <button className="desktop-nav-link" onClick={() => handleNavClick('contact')}>Contact</button>
+            <Link href="/profile" className="desktop-nav-link" style={{ color: 'var(--color-gold-light)', display: 'inline-flex', alignItems: 'center' }}>Profile 👤</Link>
           </nav>
           
           <div className="nav-actions">
@@ -77,6 +80,7 @@ export default function Navbar() {
           <button className="nav-link" onClick={() => handleNavClick('gallery')}>Gallery</button>
           <button className="nav-link" onClick={() => handleNavClick('news')}>News</button>
           <button className="nav-link" onClick={() => handleNavClick('contact')}>Contact</button>
+          <Link href="/profile" className="nav-link" style={{ color: 'var(--color-gold-light)', display: 'block', textAlign: 'center' }} onClick={() => setIsOpen(false)}>Profile 👤</Link>
         </nav>
 
         {/* Footer info inside menu */}

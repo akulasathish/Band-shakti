@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   scanned BOOLEAN DEFAULT false,
   scanned_pax INTEGER DEFAULT 0,            -- Number of guests checked in so far
   scanned_at TIMESTAMP WITH TIME ZONE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -50,3 +51,5 @@ CREATE TABLE IF NOT EXISTS gallery_assets (
 CREATE INDEX IF NOT EXISTS idx_tickets_event_id ON tickets(event_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_payment_request ON tickets(payment_request_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id);
+

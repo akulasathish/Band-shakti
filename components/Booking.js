@@ -15,12 +15,46 @@ export default function Booking() {
   const [showPromoPopup, setShowPromoPopup] = useState(false);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
 
+  // Authentication State Variables
+  const [user, setUser] = useState(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authEmail, setAuthEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+
   const [activeEvent, setActiveEvent] = useState({
     id: null,
     title: 'Band Shakthi Live Concert',
     date: 'Next Friday | 8:00 PM onwards',
     venue: 'The DownTown Pub, Ground Stage'
   });
+
+  // Fetch active user session on load & sync auth changes
+  useEffect(() => {
+    const fetchUserSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user || null);
+        if (session?.user) {
+          setEmail(session.user.email);
+        }
+      } catch (err) {
+        console.error("Failed to load user session:", err);
+      }
+    };
+    fetchUserSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+      if (session?.user) {
+        setEmail(session.user.email);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Fetch active event details from database on load
   useEffect(() => {
@@ -90,7 +124,63 @@ export default function Booking() {
   const handleIncrement = () => setQuantity((prev) => prev + 1);
   const handleDecrement = () => setQuantity((prev) => (prev > 1 ? prev - 1 : 1));
 
-  // Initiates secure API checkout with Instamojo gateway
+  // Sends custom 6-digit OTP verification code via Supabase + Resend SMTP
+  const handleSendOTP = async () => {
+    if (!authEmail.trim()) {
+      setAuthError('Please enter your email address.');
+      return;
+    }
+    try {
+      setIsAuthLoading(true);
+      setAuthError('');
+      const { error } = await supabase.auth.signInWithOtp({
+        email: authEmail.trim()
+      });
+      if (error) throw error;
+      setOtpSent(true);
+    } catch (err) {
+      setAuthError('Failed to send code: ' + err.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Verifies the user entered 6-digit OTP code and logs them in
+  const handleVerifyOTP = async () => {
+    if (otpCode.length < 6) {
+      setAuthError('Please enter the 6-digit code.');
+      return;
+    }
+    try {
+      setIsAuthLoading(true);
+      setAuthError('');
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: authEmail.trim(),
+        token: otpCode.trim(),
+        type: 'email'
+      });
+      if (error) throw error;
+      if (data?.user) {
+        setUser(data.user);
+        setEmail(data.user.email);
+        setShowAuthModal(false);
+        // Automatically proceed with checkout using the newly authenticated secure session
+        await proceedWithPaymentCheckout(authEmail.trim(), phone.trim(), data.user.id);
+      }
+    } catch (err) {
+      setAuthError('Verification failed: ' + err.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  // Skip login and checkout as a guest (Frictionless / Not Strict checkout!)
+  const handleContinueAsGuest = async () => {
+    setShowAuthModal(false);
+    await proceedWithPaymentCheckout(email.trim(), phone.trim(), null);
+  };
+
+  // Main Booking Submit - intercepts unauthenticated users for optional OTP flow
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
@@ -101,20 +191,34 @@ export default function Booking() {
       return;
     }
 
-    // Email regex validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmedEmail)) {
       alert("Please enter a valid email address.");
       return;
     }
 
-    // Phone length validation (at least 10 digits)
     const phoneDigits = trimmedPhone.replace(/\D/g, '');
     if (phoneDigits.length < 10) {
       alert("Please enter a valid 10-digit contact number.");
       return;
     }
 
+    // Intercept unauthenticated checkouts to prompt secure OTP Sign In
+    if (!user) {
+      setAuthEmail(trimmedEmail);
+      setAuthError('');
+      setOtpSent(false);
+      setOtpCode('');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Authenticated user - proceed with direct secure payment initialization
+    await proceedWithPaymentCheckout(trimmedEmail, trimmedPhone, user.id);
+  };
+
+  // Initiates secure API checkout with Instamojo gateway (links booking to userId if authenticated)
+  const proceedWithPaymentCheckout = async (trimmedEmail, trimmedPhone, loggedInUserId = null) => {
     try {
       setIsBookingLoading(true);
 
@@ -129,7 +233,8 @@ export default function Booking() {
           phone: trimmedPhone,
           quantity: totalTickets,
           eventId: activeEvent.id,
-          payableAmount: payableAmount
+          payableAmount: payableAmount,
+          userId: loggedInUserId
         })
       });
 
@@ -145,7 +250,6 @@ export default function Booking() {
         alert("Booking request initiated!\n\nRedirecting you securely to Instamojo checkout gateway...");
       }
 
-      // Redirect browser directly to payment screen (Mock or Real Instamojo URL!)
       window.location.href = data.paymentUrl;
 
     } catch (err) {
@@ -155,6 +259,7 @@ export default function Booking() {
       setIsBookingLoading(false);
     }
   };
+
 
   return (
     <section id="booking" className="section-padding booking-section">
@@ -299,6 +404,155 @@ export default function Booking() {
           </div>
         </div>
       )}
+
+      {/* 6-Digit OTP Signup / Sign In Modal */}
+      {showAuthModal && (
+        <div className="popup-overlay" onClick={() => setShowAuthModal(false)}>
+          <div className="popup-drawer" onClick={(e) => e.stopPropagation()}>
+            <button className="close-popup" onClick={() => setShowAuthModal(false)}>×</button>
+            <div className="popup-accent-dot"></div>
+            
+            {!otpSent ? (
+              <>
+                <h3 className="popup-title">🎸 JOIN THE SHAKTHI TRIBE</h3>
+                <p className="popup-subtitle">Get booking history, recover lost tickets, and bypass lines at the gate!</p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                  <div className="input-group">
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email Address</label>
+                    <input 
+                      type="email" 
+                      placeholder="name@email.com" 
+                      value={authEmail}
+                      onChange={(e) => setAuthEmail(e.target.value)}
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.05)', 
+                        color: '#ffffff', 
+                        border: '1px solid rgba(228, 166, 47, 0.3)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        width: '100%',
+                        fontSize: '1rem'
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  {authError && (
+                    <div style={{ color: '#ff5555', fontSize: '0.8rem', fontWeight: '500', textAlign: 'center' }}>
+                      ⚠️ {authError}
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handleSendOTP} 
+                    className="btn-gold" 
+                    disabled={isAuthLoading}
+                    style={{ width: '100%', cursor: isAuthLoading ? 'not-allowed' : 'pointer', opacity: isAuthLoading ? 0.7 : 1 }}
+                  >
+                    {isAuthLoading ? 'Sending verification code...' : 'Send 6-Digit OTP Code ✉️'}
+                  </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                    <button 
+                      onClick={handleContinueAsGuest}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--color-text-muted)', 
+                        textDecoration: 'underline', 
+                        fontSize: '0.85rem', 
+                        cursor: 'pointer',
+                        fontFamily: 'inherit'
+                      }}
+                    >
+                      Continue as Guest 👤 (No account)
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="popup-title">🔢 ENTER VERIFICATION CODE</h3>
+                <p className="popup-subtitle">We sent a secure 6-digit OTP code to <br /><strong style={{ color: '#ffffff' }}>{authEmail}</strong></p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
+                  <div className="input-group" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <label style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.8rem', marginBottom: '8px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enter 6-Digit Code</label>
+                    <input 
+                      type="text" 
+                      maxLength="6"
+                      placeholder="123456" 
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      style={{ 
+                        background: 'rgba(255, 255, 255, 0.05)', 
+                        color: 'var(--color-gold-light)', 
+                        border: '1px solid var(--color-gold-main)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        width: '180px',
+                        fontSize: '1.6rem',
+                        fontWeight: '700',
+                        letterSpacing: '0.2em',
+                        textAlign: 'center'
+                      }}
+                      required
+                    />
+                  </div>
+                  
+                  {authError && (
+                    <div style={{ color: '#ff5555', fontSize: '0.8rem', fontWeight: '500', textAlign: 'center' }}>
+                      ⚠️ {authError}
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={handleVerifyOTP} 
+                    className="btn-gold" 
+                    disabled={isAuthLoading}
+                    style={{ width: '100%', cursor: isAuthLoading ? 'not-allowed' : 'pointer', opacity: isAuthLoading ? 0.7 : 1 }}
+                  >
+                    {isAuthLoading ? 'Verifying...' : 'Verify & Log In ⚡'}
+                  </button>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+                    <button 
+                      onClick={() => setOtpSent(false)}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--color-text-muted)', 
+                        fontSize: '0.85rem', 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      ⬅️ Back
+                    </button>
+                    <button 
+                      onClick={handleSendOTP}
+                      style={{ 
+                        background: 'none', 
+                        border: 'none', 
+                        color: 'var(--color-gold-light)', 
+                        fontSize: '0.85rem', 
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Resend Code
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
 
       <style jsx>{`
         .booking-section {

@@ -9,7 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { name, email, phone, quantity, eventId, payableAmount } = body;
+    const { name, email, phone, quantity, eventId, payableAmount, userId } = body;
 
     if (!name || !email || !phone || !quantity || !eventId || !payableAmount) {
       return NextResponse.json({ error: 'Missing required booking fields.' }, { status: 400 });
@@ -28,7 +28,7 @@ export async function POST(request) {
     if (!apiKey || !authToken) {
       console.warn("Instamojo API credentials not found. Simulating payment request...");
       
-      // Save ticket in database as PENDING locally
+      // Save ticket in database as PENDING locally with associated user_id
       const { data: ticket, error: dbErr } = await supabase
         .from('tickets')
         .insert({
@@ -39,7 +39,8 @@ export async function POST(request) {
           pax: parseInt(quantity),
           ticket_type: 'ONLINE',
           status: 'PENDING',
-          payment_request_id: 'SIMULATED_' + Date.now()
+          payment_request_id: 'SIMULATED_' + Date.now(),
+          user_id: userId || null
         })
         .select('id, payment_request_id')
         .single();
@@ -91,7 +92,7 @@ export async function POST(request) {
 
     const paymentRequest = data.payment_request;
 
-    // Create database entry with status PENDING and the unique payment_request_id
+    // Create database entry with status PENDING and the unique payment_request_id and linked user_id
     const { error: dbErr } = await supabase
       .from('tickets')
       .insert({
@@ -102,8 +103,10 @@ export async function POST(request) {
         pax: parseInt(quantity),
         ticket_type: 'ONLINE',
         status: 'PENDING',
-        payment_request_id: paymentRequest.id
+        payment_request_id: paymentRequest.id,
+        user_id: userId || null
       });
+
 
     if (dbErr) throw dbErr;
 
