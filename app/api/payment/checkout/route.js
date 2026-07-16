@@ -117,3 +117,35 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Internal server error processing checkout: ' + error.message }, { status: 500 });
   }
 }
+
+// Secure GET Diagnostic Endpoint to verify Vercel key loading and integrity
+export async function GET(request) {
+  try {
+    const diagnostic = new URL(request.url).searchParams.get('diagnostic');
+    if (diagnostic !== 'true') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const apiKey = process.env.INSTAMOJO_API_KEY || '';
+    const authToken = process.env.INSTAMOJO_AUTH_TOKEN || '';
+    const envMode = process.env.INSTAMOJO_ENV || 'not set';
+
+    return NextResponse.json({
+      configured: {
+        hasApiKey: !!apiKey,
+        apiKeyLength: apiKey.length,
+        apiKeyPreview: apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : 'none',
+        hasAuthToken: !!authToken,
+        authTokenLength: authToken.length,
+        authTokenPreview: authToken ? `${authToken.substring(0, 4)}...${authToken.substring(authToken.length - 4)}` : 'none',
+        hasSalt: !!process.env.INSTAMOJO_SALT,
+        envMode: envMode,
+        isProd: envMode === 'production',
+        instamojoHost: envMode === 'production' ? 'https://www.instamojo.com/api/1.1' : 'https://test.instamojo.com/api/1.1'
+      }
+    });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
