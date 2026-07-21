@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/utils/supabaseClient';
-import { formatDateTimeLocalInput } from '@/utils/formatDate';
+import { formatDateTimeLocalInput, formatEventDateTime } from '@/utils/formatDate';
 
 function AdminPageContent() {
   // Auth State
@@ -1280,19 +1280,7 @@ function AdminPageContent() {
 
       // Trigger automatic background email pass delivery if guest email is provided
       if (guestEmail) {
-        let formattedDateText = activeEvent?.event_date || 'Upcoming Show';
-        if (activeEvent?.event_date) {
-          try {
-            const dateObj = new Date(activeEvent.event_date);
-            formattedDateText = dateObj.toLocaleDateString('en-US', {
-              weekday: 'short',
-              month: 'short',
-              day: 'numeric',
-              hour: 'numeric',
-              minute: '2-digit'
-            }) + ' Onwards';
-          } catch (_) {}
-        }
+        const formattedDateText = formatEventDateTime(activeEvent?.event_date);
 
         fetch('/api/booking/email', {
           method: 'POST',
