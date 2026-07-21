@@ -40,12 +40,14 @@ export async function GET(request) {
         
         try {
           const dateObj = new Date(ticketRecord.events.event_date);
-          eventDateText = dateObj.toLocaleDateString('en-US', {
+          eventDateText = dateObj.toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
             weekday: 'short',
             month: 'short',
             day: 'numeric',
             hour: 'numeric',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: true
           }) + ' Onwards';
         } catch (dateErr) {
           eventDateText = ticketRecord.events.event_date || eventDateText;
@@ -65,12 +67,14 @@ export async function GET(request) {
           eventTermsText = actEvent.terms || '';
           try {
             const dateObj = new Date(actEvent.event_date);
-            eventDateText = dateObj.toLocaleDateString('en-US', {
+            eventDateText = dateObj.toLocaleString('en-IN', {
+              timeZone: 'Asia/Kolkata',
               weekday: 'short',
               month: 'short',
               day: 'numeric',
               hour: 'numeric',
-              minute: '2-digit'
+              minute: '2-digit',
+              hour12: true
             }) + ' Onwards';
           } catch (e) {
             eventDateText = actEvent.event_date;
