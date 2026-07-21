@@ -50,3 +50,16 @@ export function formatDateTimeLocalInput(dateString) {
   const minutes = pad(d.getMinutes());
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
+
+export function parseLocalDatetimeToISO(dateTimeStr) {
+  if (!dateTimeStr) return null;
+  const str = String(dateTimeStr).trim();
+  if (str.includes('Z') || str.includes('+')) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  // Append IST offset +05:30 for bare datetime-local input strings
+  const fullStr = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+  const d = new Date(fullStr);
+  return isNaN(d.getTime()) ? new Date(str).toISOString() : d.toISOString();
+}

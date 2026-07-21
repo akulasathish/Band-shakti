@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/utils/supabaseClient';
-import { formatDateTimeLocalInput, formatEventDateTime } from '@/utils/formatDate';
+import { formatDateTimeLocalInput, formatEventDateTime, parseLocalDatetimeToISO } from '@/utils/formatDate';
 
 function AdminPageContent() {
   // Auth State
@@ -538,7 +538,7 @@ function AdminPageContent() {
         .from('events')
         .insert({
           title: newEventTitle,
-          event_date: new Date(newEventDate).toISOString(),
+          event_date: parseLocalDatetimeToISO(newEventDate),
           venue: newEventVenue,
           ticket_price: parseFloat(newEventPrice) || 500,
           total_capacity: parseInt(newEventCapacity) || 400,
@@ -588,7 +588,7 @@ function AdminPageContent() {
         .from('events')
         .insert({
           title: pastEventTitle,
-          event_date: new Date(pastEventDate).toISOString(),
+          event_date: parseLocalDatetimeToISO(pastEventDate),
           venue: pastEventVenue,
           description: pastEventDescription || '',
           ticket_price: parseFloat(pastEventPrice) || 400,
@@ -751,7 +751,7 @@ function AdminPageContent() {
         .from('events')
         .update({
           title: editingEvent.title,
-          event_date: editingEvent.event_date ? new Date(editingEvent.event_date).toISOString() : null,
+          event_date: parseLocalDatetimeToISO(editingEvent.event_date),
           venue: editingEvent.venue,
           ticket_price: parseInt(editingEvent.ticket_price) || 0,
           total_capacity: parseInt(editingEvent.total_capacity) || 0,
