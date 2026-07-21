@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/utils/supabaseClient';
+import { formatDateTimeLocalInput } from '@/utils/formatDate';
 
 function AdminPageContent() {
   // Auth State
@@ -750,7 +751,7 @@ function AdminPageContent() {
         .from('events')
         .update({
           title: editingEvent.title,
-          event_date: editingEvent.event_date,
+          event_date: editingEvent.event_date ? new Date(editingEvent.event_date).toISOString() : null,
           venue: editingEvent.venue,
           ticket_price: parseInt(editingEvent.ticket_price) || 0,
           total_capacity: parseInt(editingEvent.total_capacity) || 0,
@@ -1785,7 +1786,7 @@ function AdminPageContent() {
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <div 
-                                onClick={() => setEditingEvent({ ...evt, event_date: evt.event_date ? evt.event_date.substring(0, 16) : '' })} 
+                                onClick={() => setEditingEvent({ ...evt, event_date: formatDateTimeLocalInput(evt.event_date) })} 
                                 style={{ flex: 1, paddingRight: '10px', cursor: 'pointer' }}
                                 title="Click to edit event details"
                               >
@@ -1885,7 +1886,7 @@ function AdminPageContent() {
                                   }}
                                 >
                                   <div 
-                                    onClick={() => setEditingEvent({ ...evt, event_date: evt.event_date ? evt.event_date.substring(0, 16) : '' })} 
+                                    onClick={() => setEditingEvent({ ...evt, event_date: formatDateTimeLocalInput(evt.event_date) })} 
                                     style={{ flex: 1, paddingRight: '10px', cursor: 'pointer' }}
                                     title="Click to edit event details"
                                   >
