@@ -28,8 +28,9 @@ export default function StickersPrintPage() {
         // Generate a valid compliant UUID
         const uuid = generateUUID();
         
-        // Gate check-in verification URL
-        const verificationUrl = `http://127.0.0.1:3000/admin?verify=${uuid}`;
+        // Gate check-in verification URL using current site origin
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'https://bandshakthi.com';
+        const verificationUrl = `${origin}/admin?verify=${uuid}`;
         
         const qrUrl = await QRCode.toDataURL(verificationUrl, {
           width: 150,

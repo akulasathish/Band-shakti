@@ -40,7 +40,7 @@ function AdminPageContent() {
   
   // Tab Navigation State: 'stats' | 'scan' | 'sell' | 'more' | 'csv' | 'media' | 'history'
   const [activeTab, setActiveTab] = useState('stats');
-  const [stickerCount, setStickerCount] = useState(1);
+  const [stickerCount, setStickerCount] = useState('');
   
   // Scanner States
   const [scanResult, setScanResult] = useState(null);
@@ -52,6 +52,7 @@ function AdminPageContent() {
   // Tickets & Passes History States
   const [ticketsHistory, setTicketsHistory] = useState([]);
   const [historySearch, setHistorySearch] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('ALL'); // 'ALL' | 'ONLINE' | 'OFFLINE'
   const [expandedTicketId, setExpandedTicketId] = useState(null);
   const [showPastEvents, setShowPastEvents] = useState(false);
 
@@ -305,16 +306,19 @@ function AdminPageContent() {
         const checkedInCount = paidTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
         const revenueAmount = paidTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
 
-        // Online Breakdown (is_offline is false or null)
-        const onlineTickets = paidTickets.filter(t => !t.is_offline);
+        // Helper check for offline tickets (supports is_offline boolean flag or ticket_type = OFFLINE_GUEST)
+        const isOfflineTicket = (t) => Boolean(t.is_offline) || t.ticket_type === 'OFFLINE_GUEST';
+
+        // Online Breakdown
+        const onlineTickets = paidTickets.filter(t => !isOfflineTicket(t));
         const onlineTicketsSold = onlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
-        const onlineCheckedIn = onlineTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        const onlineCheckedIn = onlineTickets.reduce((sum, t) => sum + (t.scanned_pax || (t.scanned ? (t.pax || 1) : 0)), 0);
         const onlineRevenueAmount = onlineTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
 
-        // Offline Breakdown (is_offline is true)
-        const offlineTickets = paidTickets.filter(t => t.is_offline);
+        // Offline Breakdown
+        const offlineTickets = paidTickets.filter(t => isOfflineTicket(t));
         const offlineTicketsSold = offlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
-        const offlineCheckedIn = offlineTickets.filter(t => t.scanned).reduce((sum, t) => sum + (t.pax || 1), 0);
+        const offlineCheckedIn = offlineTickets.reduce((sum, t) => sum + (t.scanned_pax || (t.scanned ? (t.pax || 1) : 0)), 0);
         const offlineRevenueAmount = offlineTickets.reduce((sum, t) => sum + ((t.pax || 1) * ticketPrice), 0);
 
         setDbStats({
@@ -522,6 +526,11 @@ function AdminPageContent() {
       return;
     }
 
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      alert("Cannot create event while offline. An active internet connection is required to create and save events to the backend database.");
+      return;
+    }
+
     setIsUploading(true);
     try {
       const { error } = await supabase
@@ -549,7 +558,11 @@ function AdminPageContent() {
       fetchEventsList();
     } catch (err) {
       console.error("Failed to schedule event:", err);
-      alert("Failed to create event: " + err.message);
+      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+        alert("Failed to create event: Network connection error. Please connect to the internet and ensure Supabase credentials are valid.");
+      } else {
+        alert("Failed to create event: " + err.message);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -560,6 +573,11 @@ function AdminPageContent() {
     e.preventDefault();
     if (!pastEventTitle || !pastEventDate || !pastEventVenue) {
       alert("Please fill in event Title, Date, and Venue.");
+      return;
+    }
+
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      alert("Cannot create past event while offline. An active internet connection is required to create and save events to the backend database.");
       return;
     }
 
@@ -590,7 +608,11 @@ function AdminPageContent() {
       fetchEventsList();
     } catch (err) {
       console.error("Failed to log past event:", err);
-      alert("Failed to create past event: " + err.message);
+      if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
+        alert("Failed to create past event: Network connection error. Please connect to the internet and ensure Supabase credentials are valid.");
+      } else {
+        alert("Failed to create past event: " + err.message);
+      }
     } finally {
       setIsUploading(false);
     }
@@ -1236,6 +1258,7 @@ function AdminPageContent() {
     try {
       const ticketId = scanResult.qrId;
       const finalEmail = guestEmail || (guestPhone ? `${guestPhone.replace(/\s+/g, '')}@counter.com` : 'counter@guest.com');
+      const finalPax = parseInt(guestPax) || 1;
 
       const { error: dbError } = await supabase
         .from('tickets')
@@ -1246,7 +1269,8 @@ function AdminPageContent() {
           buyer_email: finalEmail,
           buyer_phone: guestPhone || '00000 00000',
           ticket_type: 'OFFLINE_GUEST',
-          pax: guestPax,
+          is_offline: true,
+          pax: finalPax,
           status: 'PAID',
           scanned: false
         });
@@ -1255,6 +1279,20 @@ function AdminPageContent() {
 
       // Trigger automatic background email pass delivery if guest email is provided
       if (guestEmail) {
+        let formattedDateText = activeEvent?.event_date || 'Upcoming Show';
+        if (activeEvent?.event_date) {
+          try {
+            const dateObj = new Date(activeEvent.event_date);
+            formattedDateText = dateObj.toLocaleDateString('en-US', {
+              weekday: 'short',
+              month: 'short',
+              day: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit'
+            }) + ' Onwards';
+          } catch (_) {}
+        }
+
         fetch('/api/booking/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1263,10 +1301,10 @@ function AdminPageContent() {
             name: guestName,
             email: guestEmail,
             phone: guestPhone || '00000 00000',
-            qty: guestPax,
-            eventTitle: activeEvent.title,
-            eventVenue: activeEvent.venue || 'Concert Stage',
-            eventDate: activeEvent.event_date || 'Next Event'
+            qty: finalPax,
+            eventTitle: activeEvent?.title || 'Band Shakthi Live Concert',
+            eventVenue: activeEvent?.venue || 'The DownTown Pub, Ground Stage',
+            eventDate: formattedDateText
           })
         }).catch(err => console.error("Automatic email delivery failed:", err));
       }
@@ -1274,12 +1312,12 @@ function AdminPageContent() {
       setActivationResult({
         success: true,
         message: guestEmail 
-          ? `Pass Activated! Bound to "${guestName}" for ${guestPax} pax. Ticket PDF has been automatically dispatched to ${guestEmail}.`
-          : `Pass Activated! Bound to "${guestName}" for ${guestPax} pax.`,
+          ? `Pass Activated! Bound to "${guestName}" for ${finalPax} pax. Ticket PDF has been automatically dispatched to ${guestEmail}.`
+          : `Pass Activated! Bound to "${guestName}" for ${finalPax} pax.`,
         name: guestName,
         phone: guestPhone || '00000 00000',
         email: guestEmail || '',
-        pax: guestPax,
+        pax: finalPax,
         ticketId: ticketId
       });
       
@@ -1330,20 +1368,24 @@ function AdminPageContent() {
 
     try {
       // 1. Define the CSV column headers
-      const headers = ["Ticket ID", "Buyer Name", "Email", "Phone", "Pax (Quantity)", "Status", "Scanned Status", "Payment ID", "Created At"];
+      const headers = ["Ticket ID", "Buyer Name", "Email", "Phone", "Channel", "Pax (Quantity)", "Status", "Scanned Status", "Payment ID", "Created At"];
       
       // 2. Map tickets history array into CSV formatted rows
-      const rows = ticketsHistory.map(ticket => [
-        ticket.id || "",
-        ticket.buyer_name || "Guest",
-        ticket.buyer_email || "",
-        ticket.buyer_phone || "",
-        ticket.pax || 1,
-        ticket.status || "PENDING",
-        ticket.scanned ? "CHECKED_IN" : "NOT_ATTENDED",
-        ticket.payment_id || "",
-        ticket.created_at ? new Date(ticket.created_at).toLocaleString() : ""
-      ]);
+      const rows = ticketsHistory.map(ticket => {
+        const isOffline = ticket.ticket_type === 'OFFLINE_GUEST' || Boolean(ticket.is_offline);
+        return [
+          ticket.id || "",
+          ticket.buyer_name || "Guest",
+          ticket.buyer_email || "",
+          ticket.buyer_phone || "",
+          isOffline ? "Offline Counter" : "Online Website",
+          ticket.pax || 1,
+          ticket.status || "PENDING",
+          ticket.scanned ? "CHECKED_IN" : (ticket.scanned_pax > 0 ? `PARTIAL (${ticket.scanned_pax}/${ticket.pax || 1})` : "NOT_ATTENDED"),
+          ticket.payment_id || "",
+          ticket.created_at ? new Date(ticket.created_at).toLocaleString() : ""
+        ];
+      });
 
       // 3. Combine header and rows with proper escaping
       const csvContent = [
@@ -2126,12 +2168,13 @@ function AdminPageContent() {
                   <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
                     <input 
                       type="number" 
+                      placeholder="Qty (e.g. 100)"
                       value={stickerCount} 
-                      onChange={(e) => setStickerCount(Math.max(1, parseInt(e.target.value) || 0))}
+                      onChange={(e) => setStickerCount(e.target.value)}
                       min="1" 
-                      max="200"
+                      max="500"
                       style={{ 
-                        width: '75px', 
+                        width: '120px', 
                         textAlign: 'center', 
                         background: '#070709', 
                         border: '1px solid rgba(228, 166, 47, 0.2)', 
@@ -2143,7 +2186,10 @@ function AdminPageContent() {
                     <button 
                       type="button" 
                       className="btn-gold" 
-                      onClick={() => window.open(`/admin/stickers?count=${stickerCount}`, '_blank')}
+                      onClick={() => {
+                        const countToOpen = parseInt(stickerCount) || 100;
+                        window.open(`/admin/stickers?count=${countToOpen}`, '_blank');
+                      }}
                       style={{ flex: 1, padding: '8px 12px', fontSize: '0.8rem' }}
                     >
                       Open Printable QR Sheet
@@ -2184,8 +2230,9 @@ function AdminPageContent() {
                     <input 
                       type="number" 
                       min="1"
+                      placeholder="e.g. 1"
                       value={guestPax} 
-                      onChange={(e) => setGuestPax(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => setGuestPax(e.target.value)}
                       required 
                     />
                   </div>
@@ -2825,86 +2872,226 @@ function AdminPageContent() {
         )}
 
         {/* TAB 7: TICKETS & ATTENDANCE HISTORY LIST */}
-        {activeTab === 'history' && (
-          <div className="tab-content">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid rgba(228,166,47,0.1)', paddingBottom: '12px' }}>
-              <h2 className="tab-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#fff' }}>Passes Log</h2>
-              <button 
-                type="button" 
-                onClick={() => setActiveTab('more')}
-                style={{
-                  background: 'rgba(228, 166, 47, 0.08)',
-                  border: '1px solid rgba(228, 166, 47, 0.3)',
-                  color: 'var(--color-gold-light)',
-                  padding: '6px 12px',
-                  borderRadius: '20px',
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  transition: 'all 0.2s'
-                }}
-              >
-                ← Tools
-              </button>
-            </div>
+        {activeTab === 'history' && (() => {
+          const onlineTickets = ticketsHistory.filter(t => !t.is_offline && t.ticket_type !== 'OFFLINE_GUEST');
+          const offlineTickets = ticketsHistory.filter(t => t.is_offline || t.ticket_type === 'OFFLINE_GUEST');
 
-            {/* Search Filter Input with Gold Export CSV Action */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', alignItems: 'flex-end' }}>
-              <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
-                <label>Search Passes</label>
-                <input 
-                  type="text" 
-                  placeholder="Search by Name, Phone, or ID..." 
-                  value={historySearch}
-                  onChange={(e) => setHistorySearch(e.target.value)}
-                  style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
-                />
+          const totalPax = ticketsHistory.reduce((sum, t) => sum + (t.pax || 1), 0);
+          const totalCheckedInPax = ticketsHistory.reduce((sum, t) => sum + (t.scanned_pax || (t.scanned ? (t.pax || 1) : 0)), 0);
+
+          const onlinePax = onlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
+          const onlineCheckedInPax = onlineTickets.reduce((sum, t) => sum + (t.scanned_pax || (t.scanned ? (t.pax || 1) : 0)), 0);
+
+          const offlinePax = offlineTickets.reduce((sum, t) => sum + (t.pax || 1), 0);
+          const offlineCheckedInPax = offlineTickets.reduce((sum, t) => sum + (t.scanned_pax || (t.scanned ? (t.pax || 1) : 0)), 0);
+
+          const filteredTickets = ticketsHistory.filter(ticket => {
+            const isOffline = ticket.is_offline || ticket.ticket_type === 'OFFLINE_GUEST';
+            if (historyTypeFilter === 'ONLINE' && isOffline) return false;
+            if (historyTypeFilter === 'OFFLINE' && !isOffline) return false;
+
+            const searchLower = historySearch.toLowerCase();
+            return (
+              ticket.buyer_name?.toLowerCase().includes(searchLower) ||
+              ticket.buyer_phone?.toLowerCase().includes(searchLower) ||
+              ticket.buyer_email?.toLowerCase().includes(searchLower) ||
+              ticket.id?.toLowerCase().includes(searchLower)
+            );
+          });
+
+          return (
+            <div className="tab-content">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid rgba(228,166,47,0.1)', paddingBottom: '12px' }}>
+                <div>
+                  <h2 className="tab-title" style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0, textTransform: 'uppercase', letterSpacing: '0.03em', color: '#fff' }}>Attendance & Passes Log</h2>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>Real-time gate check-ins & sales history across Online and Offline channels.</p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => setActiveTab('more')}
+                  style={{
+                    background: 'rgba(228, 166, 47, 0.08)',
+                    border: '1px solid rgba(228, 166, 47, 0.3)',
+                    color: 'var(--color-gold-light)',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  ← Tools
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                style={{
-                  height: '38px',
-                  background: 'linear-gradient(135deg, #e4a62f 0%, #b37d14 100%)',
-                  border: 'none',
-                  color: '#070709',
-                  padding: '0 16px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 8px rgba(228, 166, 47, 0.2)',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                📥 Export CSV
-              </button>
-            </div>
 
-            <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '60vh', paddingBottom: '40px' }}>
-              {ticketsHistory
-                .filter(ticket => {
-                  const searchLower = historySearch.toLowerCase();
-                  return (
-                    ticket.buyer_name?.toLowerCase().includes(searchLower) ||
-                    ticket.buyer_phone?.toLowerCase().includes(searchLower) ||
-                    ticket.buyer_email?.toLowerCase().includes(searchLower) ||
-                    ticket.id?.toLowerCase().includes(searchLower)
-                  );
-                })
-                .map(ticket => {
+              {/* Top Summary Cards: Online vs Offline Breakdown */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                {/* Total Stats */}
+                <div 
+                  className="glass-card" 
+                  onClick={() => setHistoryTypeFilter('ALL')}
+                  style={{ 
+                    padding: '14px 16px', 
+                    borderRadius: '10px', 
+                    background: historyTypeFilter === 'ALL' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)', 
+                    border: historyTypeFilter === 'ALL' ? '1px solid rgba(228, 166, 47, 0.5)' : '1px solid rgba(255,255,255,0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: 700 }}>Total Audience</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{totalPax} Pax</div>
+                  <div style={{ fontSize: '0.7rem', color: '#25d366', marginTop: '2px', fontWeight: 600 }}>{totalCheckedInPax} Checked In ({totalPax > 0 ? Math.round((totalCheckedInPax/totalPax)*100) : 0}%)</div>
+                </div>
+
+                {/* Online Stats */}
+                <div 
+                  className="glass-card" 
+                  onClick={() => setHistoryTypeFilter('ONLINE')}
+                  style={{ 
+                    padding: '14px 16px', 
+                    borderRadius: '10px', 
+                    background: historyTypeFilter === 'ONLINE' ? 'rgba(0, 180, 216, 0.15)' : 'rgba(0, 180, 216, 0.04)', 
+                    border: historyTypeFilter === 'ONLINE' ? '1px solid rgba(0, 180, 216, 0.5)' : '1px solid rgba(0, 180, 216, 0.2)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#00b4d8', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>🌐</span> Online Section
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{onlinePax} Pax <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>({onlineTickets.length} orders)</span></div>
+                  <div style={{ fontSize: '0.7rem', color: '#00b4d8', marginTop: '2px', fontWeight: 600 }}>{onlineCheckedInPax} Entered Gate</div>
+                </div>
+
+                {/* Offline Stats */}
+                <div 
+                  className="glass-card" 
+                  onClick={() => setHistoryTypeFilter('OFFLINE')}
+                  style={{ 
+                    padding: '14px 16px', 
+                    borderRadius: '10px', 
+                    background: historyTypeFilter === 'OFFLINE' ? 'rgba(228, 166, 47, 0.18)' : 'rgba(228, 166, 47, 0.04)', 
+                    border: historyTypeFilter === 'OFFLINE' ? '1px solid rgba(228, 166, 47, 0.5)' : '1px solid rgba(228, 166, 47, 0.2)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-gold-main)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span>🏪</span> Offline Section
+                  </div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginTop: '4px' }}>{offlinePax} Pax <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>({offlineTickets.length} passes)</span></div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--color-gold-light)', marginTop: '2px', fontWeight: 600 }}>{offlineCheckedInPax} Entered Gate</div>
+                </div>
+              </div>
+
+              {/* Filter Tabs & Search Controls */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                {/* Channel Section Pills */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '10px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('ALL')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: historyTypeFilter === 'ALL' ? '1px solid var(--color-gold-main)' : '1px solid rgba(255,255,255,0.1)',
+                      background: historyTypeFilter === 'ALL' ? 'var(--color-gold-main)' : 'rgba(255,255,255,0.03)',
+                      color: historyTypeFilter === 'ALL' ? '#070709' : 'var(--color-text-muted)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🎟️ All Passes ({ticketsHistory.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('ONLINE')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: historyTypeFilter === 'ONLINE' ? '1px solid #00b4d8' : '1px solid rgba(255,255,255,0.1)',
+                      background: historyTypeFilter === 'ONLINE' ? 'rgba(0, 180, 216, 0.2)' : 'rgba(255,255,255,0.03)',
+                      color: historyTypeFilter === 'ONLINE' ? '#00b4d8' : 'var(--color-text-muted)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🌐 Online Section ({onlineTickets.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryTypeFilter('OFFLINE')}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      border: historyTypeFilter === 'OFFLINE' ? '1px solid var(--color-gold-main)' : '1px solid rgba(255,255,255,0.1)',
+                      background: historyTypeFilter === 'OFFLINE' ? 'rgba(228, 166, 47, 0.2)' : 'rgba(255,255,255,0.03)',
+                      color: historyTypeFilter === 'OFFLINE' ? 'var(--color-gold-light)' : 'var(--color-text-muted)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    🏪 Offline Section ({offlineTickets.length})
+                  </button>
+                </div>
+
+                {/* Search Bar & Export CSV Action */}
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                  <div className="input-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <input 
+                      type="text" 
+                      placeholder={`Search ${historyTypeFilter === 'ONLINE' ? 'Online' : historyTypeFilter === 'OFFLINE' ? 'Offline' : 'All'} Passes by Name, Phone, or ID...`} 
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      style={{ width: '100%', background: '#070709', border: '1px solid rgba(228, 166, 47, 0.15)', color: '#fff', padding: '10px', borderRadius: '8px', fontSize: '0.85rem' }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    style={{
+                      height: '38px',
+                      background: 'linear-gradient(135deg, #e4a62f 0%, #b37d14 100%)',
+                      border: 'none',
+                      color: '#070709',
+                      padding: '0 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      whiteSpace: 'nowrap',
+                      boxShadow: '0 2px 8px rgba(228, 166, 47, 0.2)',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    📥 Export CSV
+                  </button>
+                </div>
+              </div>
+
+              {/* Ticket Cards List */}
+              <div className="history-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', maxHeight: '55vh', paddingBottom: '40px' }}>
+                {filteredTickets.map(ticket => {
                   const isExpanded = expandedTicketId === ticket.id;
                   const totalPax = ticket.pax || 1;
                   const scannedPax = ticket.scanned_pax || 0;
                   const remaining = totalPax - scannedPax;
+                  const isOffline = ticket.ticket_type === 'OFFLINE_GUEST' || Boolean(ticket.is_offline);
 
                   // Render visual status badge text based on scanned pax count
                   let attendanceBadgeText = 'Not Attended';
@@ -2931,7 +3118,7 @@ function AdminPageContent() {
                       onClick={() => setExpandedTicketId(isExpanded ? null : ticket.id)}
                       style={{ 
                         padding: '16px', 
-                        borderLeft: ticket.scanned ? '4px solid #25d366' : scannedPax > 0 ? '4px solid #00b4d8' : '4px solid rgba(228, 166, 47, 0.4)', 
+                        borderLeft: ticket.scanned ? '4px solid #25d366' : scannedPax > 0 ? '4px solid #00b4d8' : isOffline ? '4px solid var(--color-gold-main)' : '4px solid #00b4d8', 
                         background: 'var(--color-bg-card)', 
                         borderRadius: '8px',
                         cursor: 'pointer',
@@ -2940,7 +3127,21 @@ function AdminPageContent() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{ticket.buyer_name || 'Guest'}</h4>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>{ticket.buyer_name || 'Guest'}</h4>
+                            <span style={{ 
+                              fontSize: '0.6rem', 
+                              fontWeight: 800, 
+                              padding: '2px 6px', 
+                              borderRadius: '4px',
+                              background: isOffline ? 'rgba(228, 166, 47, 0.15)' : 'rgba(0, 180, 216, 0.15)',
+                              color: isOffline ? 'var(--color-gold-main)' : '#00b4d8',
+                              border: isOffline ? '1px solid rgba(228, 166, 47, 0.3)' : '1px solid rgba(0, 180, 216, 0.3)',
+                              textTransform: 'uppercase'
+                            }}>
+                              {isOffline ? '🏪 Offline Counter' : '🌐 Online'}
+                            </span>
+                          </div>
                           <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
                             Click card to show full details
                           </span>
@@ -2972,7 +3173,7 @@ function AdminPageContent() {
                         paddingTop: '10px'
                       }}>
                         <div>Qty: <b style={{ color: '#fff' }}>{totalPax} Pax</b></div>
-                        <div>Type: <b style={{ color: '#fff' }}>{ticket.ticket_type === 'OFFLINE_GUEST' || ticket.is_offline ? 'Offline' : 'Online'}</b></div>
+                        <div>Channel: <b style={{ color: isOffline ? 'var(--color-gold-light)' : '#00b4d8' }}>{isOffline ? 'Offline Counter' : 'Online Website'}</b></div>
                         <div style={{ gridColumn: 'span 2', marginTop: '2px' }}>Event: <b style={{ color: 'var(--color-gold-light)', fontWeight: 500 }}>{ticket.events?.title || 'Concert Live'}</b></div>
                       </div>
 
@@ -2993,6 +3194,10 @@ function AdminPageContent() {
                           }}
                           onClick={(e) => e.stopPropagation()} // prevent double-closing when clicking details text
                         >
+                          <div>
+                            <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>🎟️ Booking Channel:</span>{' '}
+                            <span style={{ color: '#fff', fontWeight: 700 }}>{isOffline ? 'Offline On-Site POS Counter' : 'Online Website (Razorpay/Gate)'}</span>
+                          </div>
                           <div>
                             <span style={{ color: 'var(--color-gold-light)', fontWeight: 600 }}>📧 Email Address:</span>{' '}
                             <span style={{ color: '#fff' }}>{ticket.buyer_email || 'N/A'}</span>
@@ -3026,14 +3231,15 @@ function AdminPageContent() {
                   );
                 })}
 
-              {ticketsHistory.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
-                  No ticket bookings found in system.
-                </div>
-              )}
+                {filteredTickets.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>
+                    No {historyTypeFilter === 'ONLINE' ? 'online' : historyTypeFilter === 'OFFLINE' ? 'offline counter' : ''} ticket bookings found in system.
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 8: INQUIRIES INBOX LIST */}
         {activeTab === 'inquiries' && (

@@ -204,7 +204,8 @@ export async function GET(request) {
     // ── SECURE QR CODE GENERATION ──
     // Points directly to the absolute local or production verification URL
     const finalTicketId = ticketId || 'pass_' + Math.random().toString(36).substring(2, 10);
-    const verificationUrl = `${request.headers.get('origin') || 'http://localhost:3000'}/admin?verify=${finalTicketId}`;
+    const origin = request.headers.get('origin') || process.env.WEBSITE_URL || 'https://bandshakthi.com';
+    const verificationUrl = `${origin}/admin?verify=${finalTicketId}`;
     const qrDataUrl = await QRCode.toDataURL(verificationUrl, { 
       width: 300, 
       margin: 1,

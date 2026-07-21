@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function POST(request) {
   try {
@@ -11,6 +16,53 @@ export async function POST(request) {
     }
 
     console.log(`[Email Dispatcher] Initiating automated booking pass delivery for ${name} (${email})...`);
+
+    let finalTitle = eventTitle || 'Band Shakthi Live Concert';
+    let finalVenue = eventVenue || 'The DownTown Pub, Ground Stage';
+    let finalDateText = eventDate || 'Upcoming Show';
+
+    // Dynamically query database for exact event details if ticketId is provided
+    if (ticketId && supabaseUrl) {
+      try {
+        const { data: ticketRecord } = await supabase
+          .from('tickets')
+          .select('*, events(title, venue, event_date)')
+          .eq('id', ticketId)
+          .maybeSingle();
+
+        if (ticketRecord && ticketRecord.events) {
+          finalTitle = ticketRecord.events.title || finalTitle;
+          finalVenue = ticketRecord.events.venue || finalVenue;
+          if (ticketRecord.events.event_date) {
+            try {
+              const d = new Date(ticketRecord.events.event_date);
+              finalDateText = d.toLocaleDateString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              }) + ' Onwards';
+            } catch (_) {
+              finalDateText = ticketRecord.events.event_date;
+            }
+          }
+        }
+      } catch (err) {
+        console.error("[Email Dispatcher] Error fetching dynamic event details:", err);
+      }
+    } else if (finalDateText && !isNaN(Date.parse(finalDateText))) {
+      try {
+        const d = new Date(finalDateText);
+        finalDateText = d.toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit'
+        }) + ' Onwards';
+      } catch (_) {}
+    }
 
     // Fetch SMTP Configuration variables
     const host = process.env.EMAIL_HOST;
@@ -35,9 +87,9 @@ export async function POST(request) {
           <p style="color: #ccc; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">Your live booking is confirmed! Below are your entry pass details. Please download your secure PDF pass and present it at the check-in gate for entry.</p>
           
           <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(228,166,47,0.15); border-radius: 8px; padding: 16px;">
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Show:</strong> ${eventTitle}</p>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Venue:</strong> ${eventVenue}</p>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Date:</strong> ${eventDate}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Show:</strong> ${finalTitle}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Venue:</strong> ${finalVenue}</p>
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Date:</strong> ${finalDateText}</p>
             <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Quantity:</strong> ${qty} Person(s)</p>
             <p style="margin: 0; font-size: 12px; color: #e4a62f; font-family: monospace;"><strong>Ticket ID:</strong> ${ticketId}</p>
           </div>
@@ -73,7 +125,7 @@ export async function POST(request) {
     await transporter.sendMail({
       from,
       to: email,
-      subject: `Your Booking Pass | ${eventTitle} — Band Shakthi`,
+      subject: `Your Booking Pass | ${finalTitle} — Band Shakthi`,
       text: `Hi ${name}! Your entry pass is ready. Please download your PDF pass here: ${ticketDownloadUrl}`,
       html: htmlTemplate
     });
