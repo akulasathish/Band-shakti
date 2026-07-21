@@ -36,15 +36,46 @@ export async function POST(request) {
           if (ticketRecord.events.event_date) {
             try {
               const d = new Date(ticketRecord.events.event_date);
-              finalDateText = d.toLocaleDateString('en-US', {
+              finalDateText = d.toLocaleString('en-IN', {
+                timeZone: 'Asia/Kolkata',
                 weekday: 'short',
                 month: 'short',
                 day: 'numeric',
                 hour: 'numeric',
-                minute: '2-digit'
+                minute: '2-digit',
+                hour12: true
               }) + ' Onwards';
             } catch (_) {
               finalDateText = ticketRecord.events.event_date;
+            }
+          }
+        } else {
+          // Fallback: Query currently active event in database
+          const { data: activeEvt } = await supabase
+            .from('events')
+            .select('title, venue, event_date')
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+
+          if (activeEvt) {
+            finalTitle = activeEvt.title || finalTitle;
+            finalVenue = activeEvt.venue || finalVenue;
+            if (activeEvt.event_date) {
+              try {
+                const d = new Date(activeEvt.event_date);
+                finalDateText = d.toLocaleString('en-IN', {
+                  timeZone: 'Asia/Kolkata',
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true
+                }) + ' Onwards';
+              } catch (_) {
+                finalDateText = activeEvt.event_date;
+              }
             }
           }
         }
@@ -54,12 +85,14 @@ export async function POST(request) {
     } else if (finalDateText && !isNaN(Date.parse(finalDateText))) {
       try {
         const d = new Date(finalDateText);
-        finalDateText = d.toLocaleDateString('en-US', {
+        finalDateText = d.toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
           weekday: 'short',
           month: 'short',
           day: 'numeric',
           hour: 'numeric',
-          minute: '2-digit'
+          minute: '2-digit',
+          hour12: true
         }) + ' Onwards';
       } catch (_) {}
     }

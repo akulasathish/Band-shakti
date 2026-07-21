@@ -88,13 +88,16 @@ export default function Profile() {
           
           if (evt) {
             const dateObj = new Date(evt.event_date);
-            const formattedDate = dateObj.toLocaleDateString('en-US', {
+            const formattedDate = dateObj.toLocaleDateString('en-IN', {
+              timeZone: 'Asia/Kolkata',
               weekday: 'long',
               month: 'short',
               day: 'numeric'
-            }) + ' | ' + dateObj.toLocaleTimeString('en-US', {
+            }) + ' | ' + dateObj.toLocaleTimeString('en-IN', {
+              timeZone: 'Asia/Kolkata',
               hour: 'numeric',
-              minute: '2-digit'
+              minute: '2-digit',
+              hour12: true
             });
 
             eventInfo = {

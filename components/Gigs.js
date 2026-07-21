@@ -116,6 +116,7 @@ export default function Gigs() {
             const dateObj = new Date(gig.event_date);
             const isPast = dateObj < new Date();
             const formattedDate = dateObj.toLocaleDateString('en-IN', {
+              timeZone: 'Asia/Kolkata',
               day: 'numeric',
               month: 'short',
               year: 'numeric'

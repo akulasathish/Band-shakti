@@ -120,12 +120,14 @@ export async function GET(request) {
         
         try {
           const dateObj = new Date(ticket.events.event_date);
-          eventDateText = dateObj.toLocaleDateString('en-US', {
+          eventDateText = dateObj.toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
             weekday: 'short',
             month: 'short',
             day: 'numeric',
             hour: 'numeric',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: true
           }) + ' Onwards';
         } catch (dateErr) {
           eventDateText = ticket.events.event_date || eventDateText;
