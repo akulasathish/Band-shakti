@@ -115,9 +115,6 @@ export async function POST(request) {
           <p style="color: #ccc; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">Your live booking is confirmed! Below are your entry pass details. Please download your secure PDF pass and present it at the check-in gate for entry.</p>
           
           <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(228,166,47,0.15); border-radius: 8px; padding: 16px;">
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Show:</strong> ${finalTitle}</p>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Venue:</strong> ${finalVenue}</p>
-            <p style="margin: 0 0 8px 0; font-size: 14px; color: #ccc;"><strong>Date:</strong> ${finalDateText}</p>
             <p style="margin: 0 0 8px 0; font-size: 14px; color: #fff;"><strong>Quantity:</strong> ${qty} Person(s)</p>
             <p style="margin: 0; font-size: 12px; color: #e4a62f; font-family: monospace;"><strong>Ticket ID:</strong> ${ticketId}</p>
           </div>
