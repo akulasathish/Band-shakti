@@ -22,20 +22,44 @@ export async function POST(request) {
     let finalDateText = eventDate || 'Upcoming Show';
 
     // Dynamically query database for exact event details if ticketId is provided
-    if (ticketId && supabaseUrl) {
+    if (supabaseUrl) {
       try {
-        const { data: ticketRecord } = await supabase
-          .from('tickets')
-          .select('*, events(title, venue, event_date)')
-          .eq('id', ticketId)
-          .maybeSingle();
+        let eventToUse = null;
 
-        if (ticketRecord && ticketRecord.events) {
-          finalTitle = ticketRecord.events.title || finalTitle;
-          finalVenue = ticketRecord.events.venue || finalVenue;
-          if (ticketRecord.events.event_date) {
+        if (ticketId) {
+          const { data: ticketRecord } = await supabase
+            .from('tickets')
+            .select('event_id')
+            .eq('id', ticketId)
+            .maybeSingle();
+
+          if (ticketRecord?.event_id) {
+            const { data: evt } = await supabase
+              .from('events')
+              .select('title, venue, event_date')
+              .eq('id', ticketRecord.event_id)
+              .maybeSingle();
+            if (evt) eventToUse = evt;
+          }
+        }
+
+        if (!eventToUse) {
+          const { data: activeEvt } = await supabase
+            .from('events')
+            .select('title, venue, event_date')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (activeEvt) eventToUse = activeEvt;
+        }
+
+        if (eventToUse) {
+          finalTitle = eventToUse.title || finalTitle;
+          finalVenue = eventToUse.venue || finalVenue;
+          if (eventToUse.event_date) {
             try {
-              const d = new Date(ticketRecord.events.event_date);
+              const d = new Date(eventToUse.event_date);
               finalDateText = d.toLocaleString('en-IN', {
                 timeZone: 'Asia/Kolkata',
                 weekday: 'short',
@@ -46,36 +70,7 @@ export async function POST(request) {
                 hour12: true
               }) + ' Onwards';
             } catch (_) {
-              finalDateText = ticketRecord.events.event_date;
-            }
-          }
-        } else {
-          // Fallback: Query currently active event in database
-          const { data: activeEvt } = await supabase
-            .from('events')
-            .select('title, venue, event_date')
-            .eq('is_active', true)
-            .limit(1)
-            .maybeSingle();
-
-          if (activeEvt) {
-            finalTitle = activeEvt.title || finalTitle;
-            finalVenue = activeEvt.venue || finalVenue;
-            if (activeEvt.event_date) {
-              try {
-                const d = new Date(activeEvt.event_date);
-                finalDateText = d.toLocaleString('en-IN', {
-                  timeZone: 'Asia/Kolkata',
-                  weekday: 'short',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit',
-                  hour12: true
-                }) + ' Onwards';
-              } catch (_) {
-                finalDateText = activeEvt.event_date;
-              }
+              finalDateText = eventToUse.event_date;
             }
           }
         }
