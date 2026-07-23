@@ -357,6 +357,48 @@ function AdminPageContent() {
     }
   };
 
+  const handleCancelTicket = async (ticketId, currentStatus) => {
+    const isCancelled = currentStatus === 'CANCELLED';
+    const actionText = isCancelled ? 'Re-activate' : 'Cancel';
+    const nextStatus = isCancelled ? 'PAID' : 'CANCELLED';
+
+    if (!confirm(`Are you sure you want to ${actionText.toLowerCase()} booking ${ticketId}?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('tickets')
+        .update({ status: nextStatus })
+        .eq('id', ticketId);
+
+      if (error) throw error;
+      fetchTicketsHistory();
+      fetchStats();
+      alert(`Booking ${ticketId} status updated to ${nextStatus}.`);
+    } catch (err) {
+      console.error("Failed to update ticket status:", err);
+      alert("Error updating ticket status: " + err.message);
+    }
+  };
+
+  const handleDeleteTicket = async (ticketId) => {
+    if (!confirm(`Are you sure you want to PERMANENTLY DELETE booking ${ticketId}? This action cannot be undone.`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('tickets')
+        .delete()
+        .eq('id', ticketId);
+
+      if (error) throw error;
+      fetchTicketsHistory();
+      fetchStats();
+      alert(`Booking ${ticketId} deleted permanently.`);
+    } catch (err) {
+      console.error("Failed to delete ticket:", err);
+      alert("Error deleting ticket: " + err.message);
+    }
+  };
+
   // --- CONTACT INQUIRIES INBOX ---
   const fetchInquiries = async () => {
     try {
@@ -3088,7 +3130,12 @@ function AdminPageContent() {
                   let badgeColor = 'var(--color-gold-main)';
                   let badgeBorder = '1px solid rgba(228, 166, 47, 0.3)';
 
-                  if (ticket.scanned) {
+                  if (ticket.status === 'CANCELLED') {
+                    attendanceBadgeText = 'Cancelled';
+                    badgeBg = 'rgba(255, 77, 77, 0.15)';
+                    badgeColor = '#ff4d4d';
+                    badgeBorder = '1px solid rgba(255, 77, 77, 0.3)';
+                  } else if (ticket.scanned) {
                     attendanceBadgeText = 'Checked In';
                     badgeBg = 'rgba(37, 211, 102, 0.15)';
                     badgeColor = '#25d366';
@@ -3107,11 +3154,12 @@ function AdminPageContent() {
                       onClick={() => setExpandedTicketId(isExpanded ? null : ticket.id)}
                       style={{ 
                         padding: '16px', 
-                        borderLeft: ticket.scanned ? '4px solid #25d366' : scannedPax > 0 ? '4px solid #00b4d8' : isOffline ? '4px solid var(--color-gold-main)' : '4px solid #00b4d8', 
+                        borderLeft: ticket.status === 'CANCELLED' ? '4px solid #ff4d4d' : ticket.scanned ? '4px solid #25d366' : scannedPax > 0 ? '4px solid #00b4d8' : isOffline ? '4px solid var(--color-gold-main)' : '4px solid #00b4d8', 
                         background: 'var(--color-bg-card)', 
                         borderRadius: '8px',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease-in-out'
+                        transition: 'all 0.2s ease-in-out',
+                        opacity: ticket.status === 'CANCELLED' ? 0.75 : 1
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -3132,7 +3180,7 @@ function AdminPageContent() {
                             </span>
                           </div>
                           <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
-                            Click card to show full details
+                            Click card to show full details & actions
                           </span>
                         </div>
                         <span 
@@ -3211,8 +3259,53 @@ function AdminPageContent() {
                               {ticket.scanned_at ? new Date(ticket.scanned_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : 'N/A'}
                             </span>
                           </div>
-                          <div style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.65rem', marginTop: '6px', color: 'rgba(255,255,255,0.15)' }}>
+                          <div style={{ wordBreak: 'break-all', fontFamily: 'monospace', fontSize: '0.65rem', marginTop: '4px', color: 'rgba(255,255,255,0.2)' }}>
                             Ticket ID: {ticket.id}
+                          </div>
+
+                          {/* Admin Management Action Buttons */}
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancelTicket(ticket.id, ticket.status);
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '8px 12px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: ticket.status === 'CANCELLED' ? 'rgba(37, 211, 102, 0.15)' : 'rgba(228, 166, 47, 0.15)',
+                                border: ticket.status === 'CANCELLED' ? '1px solid rgba(37, 211, 102, 0.4)' : '1px solid rgba(228, 166, 47, 0.4)',
+                                color: ticket.status === 'CANCELLED' ? '#25d366' : 'var(--color-gold-light)',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {ticket.status === 'CANCELLED' ? '✅ Re-activate Booking' : '🚫 Cancel Booking'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTicket(ticket.id);
+                              }}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: '6px',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                background: 'rgba(255, 77, 77, 0.15)',
+                                border: '1px solid rgba(255, 77, 77, 0.4)',
+                                color: '#ff4d4d',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              🗑️ Delete Permanently
+                            </button>
                           </div>
                         </div>
                       )}
