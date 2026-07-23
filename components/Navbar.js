@@ -38,11 +38,10 @@ export default function Navbar() {
             <button className="desktop-nav-link" onClick={() => handleNavClick('about')}>About</button>
             <button className="desktop-nav-link" onClick={() => handleNavClick('band')}>Members</button>
             <button className="desktop-nav-link" onClick={() => handleNavClick('gallery')}>Gallery</button>
-            <button className="desktop-nav-link" onClick={() => handleNavClick('news')}>News</button>
             <button className="desktop-nav-link" onClick={() => handleNavClick('contact')}>Contact</button>
             <Link href="/profile" className="desktop-nav-link" style={{ color: 'var(--color-gold-light)', display: 'inline-flex', alignItems: 'center' }}>Profile 👤</Link>
           </nav>
-          
+
           <div className="nav-actions">
             {/* Quick Ticket CTA */}
             <button 
@@ -78,7 +77,6 @@ export default function Navbar() {
           <button className="nav-link" onClick={() => handleNavClick('about')}>About</button>
           <button className="nav-link" onClick={() => handleNavClick('band')}>Band</button>
           <button className="nav-link" onClick={() => handleNavClick('gallery')}>Gallery</button>
-          <button className="nav-link" onClick={() => handleNavClick('news')}>News</button>
           <button className="nav-link" onClick={() => handleNavClick('contact')}>Contact</button>
           <Link href="/profile" className="nav-link" style={{ color: 'var(--color-gold-light)', display: 'block', textAlign: 'center' }} onClick={() => setIsOpen(false)}>Profile 👤</Link>
         </nav>
